@@ -25,6 +25,11 @@
 #define CMC_H
 
 
+// for Point and NN_WORDS
+#include <NN.h>
+
+
+
 /* the period between two calls to the timer process in milliseconds*/
 #ifndef CMC_PROCESS_TIME
 #define CMC_PROCESS_TIME 512
@@ -35,6 +40,9 @@
 #define CMC_MAX_CLIENTS 16
 #endif
 
+
+
+/* a single client connections view from the server side */
 typdef struct cmc_client_connection_t {
   uint16_t group_id;
   uint8_t state;
@@ -48,10 +56,15 @@ typedef struct cmc_server_sock_t {
   /* the group id, which the nodes use to identify this group */
   uint16_t group_id;
   
+  /* this connections private and publich key */
+  NN_DIGIT PrivateKey[NUM_WORDS];
+  Point PublicKey;
+  
   
   /* the server needs to keep some information about every connected client independently */
   cmc_client_connection_t[CMC_MAX_CLIENTS] connection;
   
+  // TODO: allowed key whitelist to be compiled into code
   
 } cmc_server_sock_t;
 
@@ -61,11 +74,36 @@ typedef struct cmc_client_sock_t {
   uint16_t state;
   uint16_t group_id;
   
+  /* this connections private and publich key */
+  NN_DIGIT PrivateKey[NUM_WORDS];
+  Point PublicKey;
+  
+  
 } cmc_client_sock_t;
 
 
 
+/* cmc server socket states */
+typedef enum {
+  CMC_SERV_CLOSED = 0x0,
+  CMC_SERV_LISTEN,
+  CMC_SERV_AUTH,
+  CMC_SERV_AUTH,
+  CMC_SERV_ESTABLISHED,
+  CMC_SERV_ACKPENDING,
+  CMC_SERV_PROCESSING,
+} cmc_server_state_e;
 
+
+/* cmc client socket states */
+typedef enum {
+  CMC_CLI_CLOSED = 0x0,
+  CMC_CLI_PRECONNECTION,
+  CMC_CLI_AUTH,
+  CMC_CLI_ESTABLISHED,
+  CMC_CLI_PROCESSING,
+  CMC_CLI_ACKPENDING,
+} cmc_client_states_e;
 
 
 /* cmc type flags */
@@ -78,7 +116,7 @@ typedef enum {
   CMC_RESPONSE,
   CMC_FINISH,
   CMC_KEY,
-} cmc_flag_t;
+} cmc_flag_e;
 
 
 /* cmc header type */
@@ -88,14 +126,15 @@ typedef struct cmc_hdr_t {
   uint8_t type;
 } cmc_hdr_t;
 
-/* cmc header expansions */
+
+
+/* ---------cmc header expansions------------ */
 
 /* sync header */
 typdef struct cmc_sync_hdr_t {
   uint16_t group_id;
   uint8_t[20] public_key;
 } cmc_sync_hdr_t;
-
 
 
 
