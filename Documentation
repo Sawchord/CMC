@@ -1,0 +1,24 @@
+This will later become the documentation of the packet.
+As of now, it is just a collection of stuff.
+
+The Header of a CMC packet consists of:
+16 bit source id
+16 bit destination id
+8 bit type field, which can either be:
+
+Data packet
+Sync packet
+Error packet
+Ack packet
+Challenge packet
+Response packet
+Finish packet
+
+The magic numbers corresponing to these types may vary during development and may be specified later.
+
+Specific packets have then specific payload attached to them:
+Sync Packets have a 16 bit group id and a 160 bit public key in them
+Finish and Error packets have a 16 bit option field, which will be used to specify error codes and finish states.
+Challenge and Response packets have a 160 bit challenge or response message.
+Ack packets have a 160 hmac or SHA1 hash as acknowledgement
+Data packets have a 16 bit length field and then variable length of data.

@@ -1,0 +1,296 @@
+diff -rPdU 2 -r TinyECC-2.0/ECCM.nc TinyECC-2.0-iris/ECCM.nc
+--- TinyECC-2.0/ECCM.nc	2010-08-21 16:21:00.000000000 +0200
++++ TinyECC-2.0-iris/ECCM.nc	2011-05-28 15:23:32.000000000 +0200
+@@ -614,24 +618,24 @@
+     if (compress){
+       if(octet_len < KEYDIGITS*NN_DIGIT_LEN+1){
+-	//too small octet
+-	return -1;
++        //too small octet
++        return -1;
+       }else{
+-	//compressed point representation
+-	if((1 & P->y[0]) == 0){
+-	  octet[0] = 0x02;
+-	}else{
+-	  octet[0] = 0x03;
+-	}
+-	call NN.Encode(octet+1, KEYDIGITS*NN_DIGIT_LEN, P->x, KEYDIGITS);
+-	return KEYDIGITS*NN_DIGIT_LEN+1;
++        //compressed point representation
++        if((1 & P->y[0]) == 0){
++          octet[0] = 0x02;
++        }else{
++          octet[0] = 0x03;
++        }
++        call NN.Encode(octet+1, KEYDIGITS*NN_DIGIT_LEN, P->x, KEYDIGITS);
++        return KEYDIGITS*NN_DIGIT_LEN+1;
+       }
+     }else{//non compressed
+       if(octet_len < 2*KEYDIGITS*NN_DIGIT_LEN+1){
+-	return -1;
++        return -1;
+       }else{
+-	octet[0] = 0x04;
+-	call NN.Encode(octet+1, KEYDIGITS*NN_DIGIT_LEN, P->x, KEYDIGITS);
+-	call NN.Encode(octet+1+KEYDIGITS*NN_DIGIT_LEN, KEYDIGITS*NN_DIGIT_LEN, P->y, KEYDIGITS);
+-	return 2*KEYDIGITS*NN_DIGIT_LEN+1;
++        octet[0] = 0x04;
++        call NN.Encode(octet+1, KEYDIGITS*NN_DIGIT_LEN, P->x, KEYDIGITS);
++        call NN.Encode(octet+1+KEYDIGITS*NN_DIGIT_LEN, KEYDIGITS*NN_DIGIT_LEN, P->y, KEYDIGITS);
++        return 2*KEYDIGITS*NN_DIGIT_LEN+1;
+       }
+     }
+@@ -640,4 +644,9 @@
+   command int ECC.octet2point(Point *P, uint8_t *octet, int octet_len){
+     NN_DIGIT alpha[NUMWORDS], tmp[NUMWORDS];
++    uint8_t yp;
++
++    /* Ensure minimum length. */
++    if (octet_len < 1)
++      return -1;
+ 
+     if (octet[0] == 0){//infinity
+@@ -645,8 +654,22 @@
+       call NN.AssignZero(P->y, NUMWORDS);
+     }else if (octet[0] == 4){//non compressed
++      /* Ensure minimum length required for non-compressed point. */
++      if (octet_len < 2*KEYDIGITS*NN_DIGIT_LEN+1)
++        return -1;
++
+       call NN.Decode(P->x, NUMWORDS, octet+1, KEYDIGITS*NN_DIGIT_LEN);
+       call NN.Decode(P->y, NUMWORDS, octet+1+KEYDIGITS*NN_DIGIT_LEN, KEYDIGITS*NN_DIGIT_LEN);
+       return 2*KEYDIGITS*NN_DIGIT_LEN+1;
+     }else if (octet[0] == 2 || octet[0] == 3){//compressed form
++      /* Ensure minimum length for compressed point. */
++      if (octet_len < KEYDIGITS*NN_DIGIT_LEN+1)
++        return -1;
++
++      /* Determine P->y mod 2. */
++      if (octet[0] == 2)
++        yp = 0;
++      else
++        yp = 1;
++
+       call NN.Decode(P->x, NUMWORDS, octet+1, KEYDIGITS*NN_DIGIT_LEN);
+       //compute y
+@@ -657,6 +680,9 @@
+       call NN.ModAdd(tmp, tmp, param.E.b, param.p, NUMWORDS);
+       call NN.ModSqrRootOpt(P->y, tmp, param.p, NUMWORDS, param.omega);
+-      if(octet[0] == 3){
+-	call NN.ModSub(P->y, param.p, P->y, param.p, NUMWORDS);
++
++      /* If P->y mod 2 is not as expected... */
++      if(yp != (P->y[0] & 1)) {
++        /* ...use the other solution. */
++        call NN.ModSub(P->y, param.p, P->y, param.p, NUMWORDS);
+       }
+       return KEYDIGITS*NN_DIGIT_LEN+1;
+diff -rPdU 2 -r TinyECC-2.0/ECIESM.nc TinyECC-2.0-iris/ECIESM.nc
+--- TinyECC-2.0/ECIESM.nc	2010-08-21 16:21:00.000000000 +0200
++++ TinyECC-2.0-iris/ECIESM.nc	2011-05-28 15:23:26.000000000 +0200
+@@ -302,5 +269,5 @@
+ 
+     if (call ECC.point_is_zero(&P))
+-      return -1;    
++      return -3;    
+ 
+     //5. convert z to octet string Z
+diff -rPdU 2 -r TinyECC-2.0/NN.h TinyECC-2.0-iris/NN.h
+--- TinyECC-2.0/NN.h	2011-02-03 23:31:12.000000000 +0100
++++ TinyECC-2.0-iris/NN.h	2011-05-28 15:23:32.000000000 +0200
+@@ -61,22 +61,20 @@
+ 
+ 
+-//mica, mica2, micaz
+-#ifdef PLATFORM_MICAZ
++//mica, mica2, micaz, iris
++#if defined(PLATFORM_MICAZ) || defined(PLATFORM_MICA2) || defined(PLATFORM_IRIS)
+ #define EIGHT_BIT_PROCESSOR
++#ifndef TOSSIM
+ #define INLINE_ASM
+ #endif
+-
+-
+-//mica, mica2, micaz
+-#ifdef PLATFORM_MICA2
+-#define EIGHT_BIT_PROCESSOR
+-#define INLINE_ASM
+ #endif
+ 
++
+ //telosb
+ #ifdef PLATFORM_TELOSB
+ #define SIXTEEN_BIT_PROCESSOR
++#ifndef TOSSIM
+ #define INLINE_ASM
+ #endif
++#endif
+ 
+ 
+@@ -84,12 +82,16 @@
+ #ifdef PLATFORM_BSNV3
+ #define SIXTEEN_BIT_PROCESSOR
++#ifndef TOSSIM
+ #define INLINE_ASM
+ #endif
++#endif
+ 
+ //imote2
+ #ifdef PLATFORM_INTELMOTE2
+ #define THIRTYTWO_BIT_PROCESSOR
++#ifndef TOSSIM
+ #define INLINE_ASM
+ #endif
++#endif
+ 
+ 
+diff -rPdU 2 -r TinyECC-2.0/NNM.nc TinyECC-2.0-iris/NNM.nc
+--- TinyECC-2.0/NNM.nc	2011-02-03 23:21:35.000000000 +0100
++++ TinyECC-2.0-iris/NNM.nc	2011-05-28 15:23:28.000000000 +0200
+@@ -111,9 +111,13 @@
+   Barrett * pBarrett;
+ 
++#ifdef TOSSIM
++#undef HYBRID_MULT
++#endif
++
+ /* Return b * c, where b and c are NN_DIGITs. The result is a NN_DOUBLE_DIGIT
+   */
+ #ifdef INLINE_ASM
+ 
+-#if defined(PLATFORM_MICAZ)||defined(PLATFORM_MICA2)
++#if defined(PLATFORM_MICAZ) || defined(PLATFORM_MICA2) || defined(PLATFORM_IRIS)
+ #define NN_DigitMult(b, c) (NN_DOUBLE_DIGIT)(b) * (c)
+ #endif
+@@ -265,5 +269,5 @@
+     //inline assembly for micaz
+ #ifdef INLINE_ASM
+-#if defined(PLATFORM_MICAZ)||defined(PLATFORM_MICA2)
++#if defined(PLATFORM_MICAZ) || defined(PLATFORM_MICA2) || defined(PLATFORM_IRIS)
+ 
+     NN_DIGIT carry;
+@@ -359,5 +363,5 @@
+ 
+ #ifdef INLINE_ASM
+-#if defined(PLATFORM_MICAZ)||defined(PLATFORM_MICA2)
++#if defined(PLATFORM_MICAZ) || defined(PLATFORM_MICA2) || defined(PLATFORM_IRIS)
+ 
+     NN_DIGIT borrow;
+@@ -456,6 +460,6 @@
+ 
+     //#ifdef INLINE_ASM
+-#ifdef HYBRID_MULT
+-#if defined(PLATFORM_MICAZ)||defined(PLATFORM_MICA2)
++#if defined(HYBRID_MULT)&&defined(INLINE_ASM)
++#if defined(PLATFORM_MICAZ) || defined(PLATFORM_MICA2) || defined(PLATFORM_IRIS)
+ #ifdef HYBRID_MUL_WIDTH4
+     uint8_t n_d;
+@@ -1759,6 +1763,6 @@
+   {
+     //#ifdef INLINE_ASM
+-#ifdef HYBRID_SQR
+-#if defined(PLATFORM_MICAZ)||defined(PLATFORM_MICA2)
++#if defined(HYBRID_SQR)&&defined(INLINE_ASM)
++#if defined(PLATFORM_MICAZ) || defined(PLATFORM_MICA2) || defined(PLATFORM_IRIS)
+     uint8_t n_d;
+     
+@@ -3170,5 +3174,5 @@
+   {
+ #ifdef INLINE_ASM
+-#if defined(PLATFORM_MICAZ)||defined(PLATFORM_MICA2)
++#if defined(PLATFORM_MICAZ) || defined(PLATFORM_MICA2) || defined(PLATFORM_IRIS)
+     NN_DIGIT carry;
+     unsigned int i;
+@@ -3268,5 +3272,5 @@
+   {
+ #ifdef INLINE_ASM
+-#if defined(PLATFORM_MICAZ) || defined(PLATFORM_MICA2)
++#if defined(PLATFORM_MICAZ) || defined(PLATFORM_MICA2) || defined(PLATFORM_IRIS)
+     NN_DIGIT borrow;
+     unsigned int i;
+@@ -3477,6 +3481,6 @@
+     pBarrett->mu_len = NN_Digits(pBarrett->mu, 2*MAX_NN_DIGITS+1);
+ 
+-#ifdef HYBRID_MULT
+-#if defined(PLATFORM_MICAZ)||defined(PLATFORM_MICA2)
++#if defined(HYBRID_MULT)
++#if defined(PLATFORM_MICAZ) || defined(PLATFORM_MICA2) || defined(PLATFORM_IRIS)
+ #ifdef HYBRID_MUL_WIDTH4
+     while ((pBarrett->mu_len % 4) != 0)
+diff -rPdU 2 -r TinyECC-2.0/secp160r1.nc TinyECC-2.0-iris/secp160r1.nc
+--- TinyECC-2.0/secp160r1.nc	2011-02-03 23:35:20.000000000 +0100
++++ TinyECC-2.0-iris/secp160r1.nc	2011-05-28 15:23:30.000000000 +0200
+@@ -338,6 +338,6 @@
+   {
+     //#ifdef INLINE_ASM
+-#ifdef HYBRID_MULT
+-#if defined(PLATFORM_MICAZ)||defined(PLATFORM_MICA2)
++#if defined(HYBRID_MULT)&&!defined(TOSSIM)
++#if (defined(PLATFORM_MICAZ) || defined(PLATFORM_MICA2) || defined(PLATFORM_IRIS))&&defined(INLINE_ASM)
+     uint8_t n_d;
+     if (digits % 4 == 0)
+diff -rPdU 2 -r TinyECC-2.0/sha1.h TinyECC-2.0-iris/sha1.h
+--- TinyECC-2.0/sha1.h	2010-08-21 16:21:00.000000000 +0200
++++ TinyECC-2.0-iris/sha1.h	2011-05-28 15:23:32.000000000 +0200
+@@ -63,5 +63,5 @@
+     int Computed;               /* Is the digest computed?         */
+     int Corrupted;             /* Is the message digest corrupted? */
+-} SHA1Context;
++} __attribute__ ((packed)) SHA1Context;
+ 
+ #endif
+--- TinyECC-2.0/Makefile	2011-07-01 16:03:47.000000000 +0200
++++ TinyECC-2.0-iris/Makefile	2011-07-01 16:02:15.000000000 +0200
+@@ -25,5 +25,5 @@
+ ##choose different optimization techniques
+ ##NN
+-CFLAGS+=-DBARRETT_REDUCTION  #barrett reduction
++#CFLAGS+=-DBARRETT_REDUCTION  #barrett reduction
+ CFLAGS+=-DHYBRID_MULT  #hybrid multipliation
+ CFLAGS+=-DHYBRID_SQR  #hybrid squre
+--- TinyECC-2.0/makefile_Alice	2010-08-21 16:21:00.000000000 +0200
++++ TinyECC-2.0-iris/makefile_Alice	2011-07-01 16:02:33.000000000 +0200
+@@ -25,5 +25,5 @@
+ ##choose different optimization techniques
+ ##NN
+-CFLAGS+=-DBARRETT_REDUCTION  #barrett reduction
++#CFLAGS+=-DBARRETT_REDUCTION  #barrett reduction
+ CFLAGS+=-DHYBRID_MULT  #hybrid multipliation
+ CFLAGS+=-DHYBRID_SQR  #hybrid squre
+--- TinyECC-2.0/makefile_Bob	2010-08-21 16:21:00.000000000 +0200
++++ TinyECC-2.0-iris/makefile_Bob	2011-07-01 16:02:38.000000000 +0200
+@@ -25,5 +25,5 @@
+ ##choose different optimization techniques
+ ##NN
+-CFLAGS+=-DBARRETT_REDUCTION  #barrett reduction
++#CFLAGS+=-DBARRETT_REDUCTION  #barrett reduction
+ CFLAGS+=-DHYBRID_MULT  #hybrid multipliation
+ CFLAGS+=-DHYBRID_SQR  #hybrid squre
+--- TinyECC-2.0/makefile_ECDH	2010-08-21 16:21:00.000000000 +0200
++++ TinyECC-2.0-iris/makefile_ECDH	2011-07-01 16:02:43.000000000 +0200
+@@ -24,5 +24,5 @@
+ ##choose different optimization techniques
+ ##NN
+-CFLAGS+=-DBARRETT_REDUCTION  #barrett reduction
++#CFLAGS+=-DBARRETT_REDUCTION  #barrett reduction
+ CFLAGS+=-DHYBRID_MULT  #hybrid multipliation
+ CFLAGS+=-DHYBRID_SQR  #hybrid squre
+--- TinyECC-2.0/makefile_ECIES	2010-08-21 16:21:00.000000000 +0200
++++ TinyECC-2.0-iris/makefile_ECIES	2011-07-01 16:02:47.000000000 +0200
+@@ -25,5 +25,5 @@
+ ##choose different optimization techniques
+ ##NN
+-CFLAGS+=-DBARRETT_REDUCTION  #barrett reduction
++#CFLAGS+=-DBARRETT_REDUCTION  #barrett reduction
+ CFLAGS+=-DHYBRID_MULT  #hybrid multipliation
+ CFLAGS+=-DHYBRID_SQR  #hybrid squre
+--- TinyECC-2.0/makefile_testASM	2010-08-21 16:21:00.000000000 +0200
++++ TinyECC-2.0-iris/makefile_testASM	2011-07-01 16:02:54.000000000 +0200
+@@ -33,5 +33,5 @@
+ ##choose different optimization techniques
+ ##NN
+-CFLAGS+=-DBARRETT_REDUCTION  #barrett reduction
++#CFLAGS+=-DBARRETT_REDUCTION  #barrett reduction
+ CFLAGS+=-DHYBRID_MULT  #hybrid multipliation
+ CFLAGS+=-DHYBRID_SQR  #hybrid squre
