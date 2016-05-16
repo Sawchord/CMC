@@ -26,7 +26,7 @@
 
 
 // for Point and NN_WORDS
-#include <NN.h>
+#include "TinyECC/NN.h"
 
 
 
@@ -44,7 +44,7 @@
 
 /* a single client connections view from the server side */
 typdef struct cmc_client_connection_t {
-  uint16_t group_id;
+  uint16_t remote_id;
   uint8_t state;
 } cmc_client_connection_t;
 
@@ -57,8 +57,8 @@ typedef struct cmc_server_sock_t {
   uint16_t group_id;
   
   /* this connections private and publich key */
-  NN_DIGIT PrivateKey[NUM_WORDS];
-  Point PublicKey;
+  NN_DIGIT* private_key[NUM_WORDS];
+  Point* public_key;
   
   
   /* the server needs to keep some information about every connected client independently */
@@ -74,9 +74,9 @@ typedef struct cmc_client_sock_t {
   uint16_t state;
   uint16_t group_id;
   
-  /* this connections private and publich key */
-  NN_DIGIT PrivateKey[NUM_WORDS];
-  Point PublicKey;
+  /* this connections private and public key */
+  NN_DIGIT* private_key[NUM_WORDS];
+  Point* public_key;
   
   
 } cmc_client_sock_t;
@@ -108,15 +108,14 @@ typedef enum {
 
 /* cmc type flags */
 typedef enum {
-  CMC_DATA = 0x0,
-  CMC_SYNC,
-  CMC_ERR,
-  CMC_ERR,
-  CMC_CHALLENGE,
-  CMC_RESPONSE,
-  CMC_FINISH,
-  CMC_KEY,
-} cmc_flag_e;
+  CMC_DATA = 0x1,
+  CMC_SYNC = 0x2,
+  CMC_FINISH = 0x4,
+  CMC_ERR = 0x8,
+  CMC_CHALLENGE = 0x10,
+  CMC_RESPONSE = 0x20,
+  CMC_KEY = 0x40,
+} cmc_flag_e = 0x80;
 
 
 /* cmc header type */
@@ -133,7 +132,7 @@ typedef struct cmc_hdr_t {
 /* sync header */
 typdef struct cmc_sync_hdr_t {
   uint16_t group_id;
-  uint8_t[20] public_key;
+  Point* public_key;
 } cmc_sync_hdr_t;
 
 

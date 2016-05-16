@@ -20,3 +20,40 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS."
  * 
  */
+
+#include "CMC.h"
+#include "TinyECC/NN.h"
+
+interface CMCClient {
+  
+  /* intializes the socket, call before use */
+  command error_t Init(local_id, void* buf, uint16_t buf_len);
+  
+  /* opens this socket for connections */
+  command error_t bind(uint16_t group_id, Point* local_public_key);
+  
+  /* send data over the cannel */
+  command error_t send(void* data, uint16_t data_len);
+  
+  /* terminates the connection with a specific client node */
+  command error_t close(uint16_t remote_id);
+  
+  /* terminates all connection and goes into closed state */
+  command error_t shutdown();
+  
+  
+  /* Signaled, whenever a node has connected or failed to connect this server */
+  event void connected(error_t e);
+  
+  /* Signaled after packet was sent successfully or sent failed.
+   * Also indicates, that the cannel is ready to send further data */
+  event void sendDone(error_t e);
+  
+  /* Signals, that the connection has be shut down succesfully.
+   * Is also risen with FAIL, if connection is terminated unexpected*/
+  event void closed(error_t e);
+  
+  /* Signaled if data was received*/
+  event void recv(void* payload, uint16_t plen);
+  
+}
