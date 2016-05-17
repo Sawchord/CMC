@@ -20,29 +20,55 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS."
  * 
  */
-configuration CMCServerC {
-  provides interface CMCServer[uint8_t server];
-} implementation {
-  
-  components MainC;
-  components new TimmerMilliC();
-  components RandomC;
-  
-  components CMCServerP;
-  
-  MainC -> CMCServerP.Init;
-  CMCServerP.Boot -> MainC;
-  
-  CMCServerP.Timer -> TimmerMilliC;
-  CMCServerP.Random -> RandomC;
-  
-  /* radio components */
-  components new AMSenderC(AM_CMC);
-  components new AMReceiverC(AM_CMC);
+
+// TODO: includes
+
+/* debug output */
+#ifdef DEBUG_OUT
+#include <printf.h>
+#define DBG(...) printf(__VA_ARGS__); printfflush()
+#else
+#define DBG(...) 
+#endif
 
 
-  App.Packet -> AMSenderC;
-  App.AMSend -> AMSenderC;
-  App.Receive -> AMReceiverC;
+module CMCClientExP {
+uses {
+  interface Boot;
+  interface SplitControl as RadioControl;
+  
+  interface CMCClient as Client0;
+  
+  interface Leds;
+  
+  interface Timer<TMilli> as Timer;
+  interface Timer<TMilli> as LocalTime;
+  
+  interface Random;
+  }
+} implentation {
+  
+  bool connected = FALSE;
+  
+  
+  event void Boot.booted() {
+    call RadioControl.start();
+    call Client0.init();
+  }
+  
+  event void RadioControl.startDone(error_t e) {
+    
+    if (e != SUCCESS) {
+      DBG("error starting radio... retry\n");
+      call RadioControl.start();
+      return;
+    }
+    
+    DBG("Radio is up\n");
+    call Timer0.start();
+    
+  }
+  
+  
   
 }

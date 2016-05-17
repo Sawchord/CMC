@@ -108,14 +108,15 @@ typedef enum {
 
 /* cmc type flags */
 typedef enum {
-  CMC_DATA = 0x1,
-  CMC_SYNC = 0x2,
-  CMC_FINISH = 0x4,
-  CMC_ERR = 0x8,
-  CMC_CHALLENGE = 0x10,
-  CMC_RESPONSE = 0x20,
-  CMC_KEY = 0x40,
-} cmc_flag_e = 0x80;
+  CMC_SYNC = 0x1,
+  CMC_FINISH = 0x2,
+  CMC_ERR = 0x4,
+  CMC_CHALLENGE = 0x8,
+  CMC_RESPONSE = 0x10,
+  CMC_KEY = 0x20,
+  CMC_ACK = 0x40,
+  CMC_DATA = 0x80,
+} cmc_flag_e;
 
 
 /* cmc header type */

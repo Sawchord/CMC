@@ -20,3 +20,31 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS."
  * 
  */
+
+configuration CMCClientC {
+  provides interface CMCClient[uint8_t client];
+} implementation {
+  
+  components MainC;
+  components new TimmerMilliC();
+  components RandomC;
+  
+  components CMCClientP;
+  
+  MainC -> CMCClientP.Init;
+  CMCClientP.Boot -> MainC;
+  
+  CMCClientP.Timer -> TimmerMilliC;
+  CMCClientP.Random -> RandomC;
+  
+  
+  /* radio components */
+  components new AMSenderC(AM_CMC);
+  components new AMReceiverC(AM_CMC);
+
+
+  App.Packet -> AMSenderC;
+  App.AMSend -> AMSenderC;
+  App.Receive -> AMReceiverC;
+    
+}

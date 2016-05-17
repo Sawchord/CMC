@@ -4,15 +4,15 @@ As of now, it is just a collection of stuff.
 The Header of a CMC packet consists of:
 16 bit source id
 16 bit destination id
-8 bit type field, which can either be:
+8 bit type flag:
 
-Data packet
 Sync packet
+Finish packet
 Error packet
 Ack packet
 Challenge packet
 Response packet
-Finish packet
+Data packet
 
 The magic numbers corresponing to these types may vary during development and may be specified later.
 

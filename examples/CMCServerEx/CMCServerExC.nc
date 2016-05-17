@@ -20,29 +20,3 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS."
  * 
  */
-configuration CMCServerC {
-  provides interface CMCServer[uint8_t server];
-} implementation {
-  
-  components MainC;
-  components new TimmerMilliC();
-  components RandomC;
-  
-  components CMCServerP;
-  
-  MainC -> CMCServerP.Init;
-  CMCServerP.Boot -> MainC;
-  
-  CMCServerP.Timer -> TimmerMilliC;
-  CMCServerP.Random -> RandomC;
-  
-  /* radio components */
-  components new AMSenderC(AM_CMC);
-  components new AMReceiverC(AM_CMC);
-
-
-  App.Packet -> AMSenderC;
-  App.AMSend -> AMSenderC;
-  App.Receive -> AMReceiverC;
-  
-}
