@@ -29,10 +29,10 @@
 interface CMCClient {
   
   /* intializes the socket, call before use */
-  command error_t init(uint16_t local_id, void* buf, uint16_t buf_len);
+  command error_t init(uint16_t local_id, void* buf, uint16_t buf_len, ecc_key* local_key);
   
   /* opens this socket for connections */
-  command error_t bind(uint16_t group_id, ecc_key* local_public_key);
+  command error_t bind(uint16_t group_id);
   
   /* send data over the cannel */
   command error_t send(void* data, uint16_t data_len);

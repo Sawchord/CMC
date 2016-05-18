@@ -35,9 +35,9 @@ module CMCServerP {
     
     interface Random;
     
-    uses interface Packet;
-    uses interface AMSend;
-    uses interface Receive;
+    interface Packet;
+    interface AMSend;
+    interface Receive;
   }
 } implementation {
   
@@ -63,38 +63,45 @@ module CMCServerP {
     
   }
   
+  event void AMSend.sendDone(message_t* msg, error_t error) {
+    
+  }
+  
+  event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len) {
+    
+  }
+  
   /* ---------- command implementations ---------- */
   command error_t CMCServerP.init[uint8_t client](uint16_t local_id,
-    void* buf, uint16_t buf_len) {
+    void* buf, uint16_t buf_len, ecc_key* local_key) {
     
   }
   
   
-  command error_t CMCServerP.bind[uint8_t client](uint16_t group_id,
-    ecc_key* local_public_key) {
+  command error_t CMCServer.bind[uint8_t client](uint16_t group_id) {
     
   }
   
   
-  command error_t CMCServerP.send[uint8_t client](void* data, uint16_t data_len) {
+  command error_t CMCServer.send[uint8_t client](void* data, uint16_t data_len) {
     
   }
   
   
-  command error_t CMCServerP.close[uint8_t client]() {
+  command error_t CMCServer.close[uint8_t client]() {
     
   }
   
-  commant error_t CMCServerP.shutdown[client]() {
+  commant error_t CMCServer.shutdown[client]() {
     
   }
   
   /* --------- default events -------- */
-  default event void CMCServerP.connected[uint8_t cid](error_t e) {}
+  default event void CMCServer.connected[uint8_t cid](error_t e) {}
   
-  default event void CMCServerP.sendDone[uint8_t cid](error_t e) {}
+  default event void CMCServer.sendDone[uint8_t cid](error_t e) {}
   
-  default event void CMCServerP.closed[uint8_t cid](error_t e) {}
+  default event void CMCServer.closed[uint8_t cid](error_t e) {}
   
-  default event void CMCServerP.recv[uint8_t cid](error_t e) {}
+  default event void CMCServer.recv[uint8_t cid](error_t e) {}
 }

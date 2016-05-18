@@ -26,7 +26,7 @@ configuration CMCClientC {
 } implementation {
   
   components MainC;
-  components new TimmerMilliC();
+  components new TimerMilliC();
   components RandomC;
   
   components CMCClientP;
@@ -34,7 +34,7 @@ configuration CMCClientC {
   MainC -> CMCClientP.Init;
   CMCClientP.Boot -> MainC;
   
-  CMCClientP.Timer -> TimmerMilliC;
+  CMCClientP.Timer -> TimerMilliC;
   CMCClientP.Random -> RandomC;
   
   
@@ -43,8 +43,10 @@ configuration CMCClientC {
   components new AMReceiverC(AM_CMC);
 
 
-  App.Packet -> AMSenderC;
-  App.AMSend -> AMSenderC;
-  App.Receive -> AMReceiverC;
+  CMCClientP.Packet -> AMSenderC;
+  CMCClientP.AMSend -> AMSenderC;
+  CMCClientP.Receive -> AMReceiverC;
     
+  CMCClient = CMCClientP;
+  
 }

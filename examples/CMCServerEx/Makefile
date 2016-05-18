@@ -11,6 +11,7 @@ PFLAGS += -DDEBUG_OUT
 
 # Include the CMC folder
 CFLAGS += -I../../CMC
+CFLAGS += -I../../CMC/tinypkc
 
 include $(MAKERULES)
 

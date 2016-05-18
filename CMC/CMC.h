@@ -26,8 +26,14 @@
 
 
 // for Point and NN_WORDS
-#include "TinyECC/NN.h"
+//#include "TinyECC/NN.h"
+#include "tinypkc/ecc.h"
+#include "tinypkc/integer.h"
 
+/* the cannel for the MCMC network to operate on */
+#ifndef AM_CMC
+#define AM_CMC 8
+#endif
 
 
 /* the period between two calls to the timer process in milliseconds*/
@@ -43,7 +49,7 @@
 
 
 /* a single client connections view from the server side */
-typdef struct cmc_client_connection_t {
+typedef struct cmc_client_connection_t {
   uint16_t remote_id;
   uint8_t state;
 } cmc_client_connection_t;
@@ -57,12 +63,11 @@ typedef struct cmc_server_sock_t {
   uint16_t group_id;
   
   /* this connections private and publich key */
-  NN_DIGIT* private_key[NUM_WORDS];
-  Point* public_key;
+  ecc_key* local_key;
   
   
   /* the server needs to keep some information about every connected client independently */
-  cmc_client_connection_t[CMC_MAX_CLIENTS] connection;
+  cmc_client_connection_t connection[CMC_MAX_CLIENTS];
   
   // TODO: allowed key whitelist to be compiled into code
   
@@ -75,19 +80,18 @@ typedef struct cmc_client_sock_t {
   uint16_t group_id;
   
   /* this connections private and public key */
-  NN_DIGIT* private_key[NUM_WORDS];
-  Point* public_key;
+  ecc_key* local_key;
   
   
 } cmc_client_sock_t;
 
 
 
+// FIXME: one state type may be enough
 /* cmc server socket states */
 typedef enum {
   CMC_SERV_CLOSED = 0x0,
   CMC_SERV_LISTEN,
-  CMC_SERV_AUTH,
   CMC_SERV_AUTH,
   CMC_SERV_ESTABLISHED,
   CMC_SERV_ACKPENDING,
@@ -127,13 +131,14 @@ typedef struct cmc_hdr_t {
 } cmc_hdr_t;
 
 
-
 /* ---------cmc header expansions------------ */
 
 /* sync header */
-typdef struct cmc_sync_hdr_t {
+typedef struct cmc_sync_hdr_t {
   uint16_t group_id;
-  Point* public_key;
+  
+  // FIXME: what datatype to put here?
+  uint16_t public_key;
 } cmc_sync_hdr_t;
 
 

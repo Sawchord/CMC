@@ -36,19 +36,19 @@ module CMCClientP {
     
     interface Random;
     
-    uses interface Packet;
-    uses interface AMSend;
-    uses interface Receive;
+    interface Packet;
+    interface AMSend;
+    interface Receive;
     
   }
 } implementation {
   
   enum {
-    N_LOCAL_CLIENTS = uniqueCount("CMC_CLIENT");
+    N_LOCAL_CLIENTS = uniqueCount("CMC_CLIENT"),
   };
   
   /* holds all sockets to cmc in an array */
-  cmc_client_sock_t[N_LOCAL_CLIENTS];
+  cmc_client_sock_t socks[N_LOCAL_CLIENTS];
   
   
   /* --------- implemented events --------- */
@@ -67,35 +67,43 @@ module CMCClientP {
     
   }
   
+  event void AMSend.sendDone(message_t* msg, error_t error) {
+    
+  }
+  
+  event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len) {
+    
+  }
+  
   /* ---------- command implementations ---------- */
-  command error_t CMCCLientP.init[uint8_t client](uint16_t local_id,
-    void* buf, uint16_t buf_len) {
+  command error_t CMCClient.init[uint8_t client](uint16_t local_id,
+    void* buf, uint16_t buf_len, ecc_key* local_key) {
     
   }
   
   
-  command error_t CMCClientP.connect[uint8_t client](uint16_t group_id,
+  command error_t CMCClient.connect[uint8_t client](uint16_t group_id,
     ecc_key* remote_public_key) {
     
   }
   
   
-  command error_t CMCClientP.send[uint8_t client](void* data, uint16_t data_len) {
+  command error_t CMCClient.send[uint8_t client](void* data, uint16_t data_len) {
     
   }
   
   
-  command error_t CMCClientP.close[uint8_t client]() {
+  command error_t CMCClient.close[uint8_t client]() {
     
   }
   
   
   /* --------- default events -------- */
-  default event void CMCClientP.connected[uint8_t cid](error_t e) {}
+  default event void CMCClient.connected[uint8_t cid](error_t e) {}
   
-  default event void CMCClientP.sendDone[uint8_t cid](error_t e) {}
+  default event void CMCClient.sendDone[uint8_t cid](error_t e) {}
   
-  default event void CMCClientP.closed[uint8_t cid](error_t e) {}
+  default event void CMCClient.closed[uint8_t cid](error_t e) {}
   
-  default event void CMCClientP.recv[uint8_t cid](error_t e) {}
+  default event void CMCClient.recv[uint8_t cid](void* payload, uint16_t plen) {}
 }

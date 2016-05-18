@@ -29,7 +29,7 @@
 interface CMCClient {
   
   /* intializes the socket, call before use */
-  command error_t init(uint16_t local_id, void* buf, uint16_t buf_len);
+  command error_t init(uint16_t local_id, void* buf, uint16_t buf_len, ecc_key* local_key);
   
   /* connects this socket to the server */
   command error_t connect(uint16_t group_id, ecc_key* remote_public_key);

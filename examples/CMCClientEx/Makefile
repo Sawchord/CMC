@@ -3,14 +3,27 @@ COMPONENT=CMCClientExC
 # BOOTLOADER=tosboot
 
 
-PFLAGS += -DNEW_PRINTF_SEMANTICS -DPRINTFUART_ENABLED
-#PFLAGS += -DNEW_PRINTF_SEMANTICS
+#PFLAGS += -DNEW_PRINTF_SEMANTICS -DPRINTFUART_ENABLED
+PFLAGS += -DNEW_PRINTF_SEMANTICS
+
+# for the printf
+CFLAGS += -I$(TOSDIR)/lib/printf
+CFLAGS += -DPRINTF_BUFFER_SIZE=256
 
 # Enable debug output
-PFLAGS += -DDEBUG_OUT
+CFLAGS += -DDEBUG_OUT
+
+#enable ecc testvalues and ecc160
+PFLAGS += ../../CMC/tinypkc/integer.c
+CFLAGS += -DECC160
+CFLAGS += -DECC_TEST_VALUES # hardcoded test values in use for now
+CFLAGS += -DMP_PREC=40 # precision for the large interger packet
+CFLAGS += -DHAVE_ECC
+
 
 # Include the CMC folder
 CFLAGS += -I../../CMC
+CFLAGS += -I../../CMC/tinypkc
 
 include $(MAKERULES)
 

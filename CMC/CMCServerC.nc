@@ -25,7 +25,7 @@ configuration CMCServerC {
 } implementation {
   
   components MainC;
-  components new TimmerMilliC();
+  components new TimerMilliC();
   components RandomC;
   
   components CMCServerP;
@@ -33,7 +33,7 @@ configuration CMCServerC {
   MainC -> CMCServerP.Init;
   CMCServerP.Boot -> MainC;
   
-  CMCServerP.Timer -> TimmerMilliC;
+  CMCServerP.Timer -> TimerMilliC;
   CMCServerP.Random -> RandomC;
   
   /* radio components */

@@ -20,3 +20,26 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS."
  * 
  */
+configuration CMCServerExC {
+  
+} implementation {
+  
+  components MainC, LedsC;
+  components CMCServerExP;
+  
+  CMCServerExP.Boot -> MainC;
+  CMCServerExP.Leds -> LedsC;
+  
+  components new TimerMilliC() as Timer;
+  CMCServerExP.Timer -> Timer;
+  
+  components nre TimerMilliC() as LocalTime;
+  CMCClient.LocalTimer -> LocalTime;
+  
+  components ActiveMessageC;
+  CMCServerExP.RadioControl -> ActiveMessageC;
+  
+  components CMCServerC;
+  CMCServerExP.CMCServer -> CMCServerC;
+  
+}

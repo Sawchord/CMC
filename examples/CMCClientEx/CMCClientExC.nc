@@ -34,13 +34,18 @@ configuration CMCClientExC {
   components new TimerMilliC() as Timer;
   CMCClientExP.Timer -> Timer;
   
-  components nre TimerMilliC() as LocalTime;
-  CMCClient.LocalTimer -> LocalTime;
+  components LocalTimeMilliC;
+  CMCClientExP.LocalTime -> LocalTimeMilliC;
   
   components ActiveMessageC;
   CMCClientExP.RadioControl -> ActiveMessageC;
   
-  components CMCClientC;
-  CMCClientExP.CMCClient -> CMCClientC;
+  components new CMCClientSocket() as Client0;
+  CMCClientExP.Client0 -> Client0;
   
+  components EccC;
+  CMCClientExP.ECC -> EccC;
+ 
+  components SerialStartC;
+  components PrintfC;
 }
