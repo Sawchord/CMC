@@ -16,9 +16,23 @@ Data packet
 
 The magic numbers corresponing to these types may vary during development and may be specified later.
 
-Specific packets have then specific payload attached to them:
+
+A flag indicates, that this packet may have an option field attached to it.
+The option fields are attachached in the following order and size:
 Sync Packets have a 16 bit group id and a 160 bit public key in them
 Finish and Error packets have a 16 bit option field, which will be used to specify error codes and finish states.
 Challenge and Response packets have a 160 bit challenge or response message.
-Ack packets have a 160 hmac or SHA1 hash as acknowledgement
-Data packets have a 16 bit length field and then variable length of data.
+
+//Ack packets have a 160 hmac or SHA1 hash as acknowledgement
+Ack packets have no extra data fields
+
+Data packets have a 16 bit length field, then a 160 bit sha1 hash
+and then variable length of data.
+
+
+
+
+
+TODO list:
+Get the basic network to work
+Abstract the ECC stuff away from the user

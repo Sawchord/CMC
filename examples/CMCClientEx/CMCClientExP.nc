@@ -116,7 +116,7 @@ uses {
       DBG("Attempting to connect to server\n");
       
       connecting = TRUE;
-      call Client0.connect(1, &remote_key);
+      call Client0.connect(1, &remote_key.pubkey);
       return;
     }
   }

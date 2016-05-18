@@ -47,6 +47,10 @@ module CMCClientP {
     N_LOCAL_CLIENTS = uniqueCount("CMC_CLIENT"),
   };
   
+  
+  /* ------- globals ------- */
+  message_t pkt;
+  
   /* holds all sockets to cmc in an array */
   cmc_client_sock_t socks[N_LOCAL_CLIENTS];
   
@@ -54,6 +58,13 @@ module CMCClientP {
   /* --------- implemented events --------- */
   /* startup initialization */
   command error_t Init.init() {
+    uint8_t i;
+    
+    for (i = 0; i < N_LOCAL_CLIENTS; i++) {
+      
+      // set all sockets to closed
+      socks[i].state = CMC_CLOSED;
+    }
     
   }
   
@@ -79,11 +90,47 @@ module CMCClientP {
   command error_t CMCClient.init[uint8_t client](uint16_t local_id,
     void* buf, uint16_t buf_len, ecc_key* local_key) {
     
+    cmc_client_sock_t* sock = &socks[client];
+    
+    // set all local parameters
+    sock->state = CMC_CLOSED;
+    sock->local_id = local_id;
+    
+    sock->buf = buf;
+    sock->buf_len = buf_len;
+    
+    // FIXME: instead of pointer to ecc_key, generate key structure here
+    sock->local_key = local_key;
+    
   }
   
   
   command error_t CMCClient.connect[uint8_t client](uint16_t group_id,
-    ecc_key* remote_public_key) {
+    ecc_point* remote_public_key) {
+    
+    
+    cmc_hdr_t* main_header;
+    cmc_sync_hdr_t* sync_header;
+    
+    // set the global parameters
+    cmc_client_sock_t* sock = &socks[client];
+    sock->group_id = group_id;
+    
+    sock->state = CMC_PRECONNECTION;
+    
+    // TODO: Send the sync packet
+    main_header = (cmc_hdr_t*)(call Packet.getPayload(&pkt, 
+      sizeof(main_header) + sizeof(sync_header)));
+    
+    sync_header = main_header + sizeof(main_header);
+    
+    main_header->src = sock->local_id;
+    main_header->dst = group_id;
+    main_header->flags = (1 << CMC_SYNC);
+    
+    memcpy( &(sync_header->public_key), remote_public_key, sizeof(ecc_point) );
+    
+    return (call AMSend.send(AM_CMC, &pkt, sizeof(main_header) + sizeof(sync_header)) );
     
   }
   

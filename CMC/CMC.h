@@ -59,12 +59,14 @@ typedef struct cmc_server_sock_t {
   
   uint16_t state;
   
+  /* the local id is the id, which other nodes refer to this node */
+  uint16_t local_id;
+  
   /* the group id, which the nodes use to identify this group */
   uint16_t group_id;
   
-  /* this connections private and publich key */
+  /* this connections private and public key */
   ecc_key* local_key;
-  
   
   /* the server needs to keep some information about every connected client independently */
   cmc_client_connection_t connection[CMC_MAX_CLIENTS];
@@ -77,7 +79,14 @@ typedef struct cmc_server_sock_t {
 typedef struct cmc_client_sock_t {
   
   uint16_t state;
+  
+  /* ids work the same as in the server */
+  uint16_t local_id;
   uint16_t group_id;
+  
+  /* the buffer that is used to construct data before sending */
+  void* buf;
+  uint16_t buf_len;
   
   /* this connections private and public key */
   ecc_key* local_key;
@@ -87,27 +96,17 @@ typedef struct cmc_client_sock_t {
 
 
 
-// FIXME: one state type may be enough
-/* cmc server socket states */
+// FIXED: one state type may be enough
+/* cmc socket states (for both server and client)*/
 typedef enum {
-  CMC_SERV_CLOSED = 0x0,
-  CMC_SERV_LISTEN,
-  CMC_SERV_AUTH,
-  CMC_SERV_ESTABLISHED,
-  CMC_SERV_ACKPENDING,
-  CMC_SERV_PROCESSING,
-} cmc_server_state_e;
-
-
-/* cmc client socket states */
-typedef enum {
-  CMC_CLI_CLOSED = 0x0,
-  CMC_CLI_PRECONNECTION,
-  CMC_CLI_AUTH,
-  CMC_CLI_ESTABLISHED,
-  CMC_CLI_PROCESSING,
-  CMC_CLI_ACKPENDING,
-} cmc_client_states_e;
+  CMC_CLOSED = 0x0,
+  CMC_PRECONNECTION,
+  CMC_LISTEN,
+  CMC_AUTH,
+  CMC_ESTABLISHED,
+  CMC_ACKPENDING,
+  CMC_PROCESSING,
+} cmc_state_e;
 
 
 /* cmc type flags */
@@ -127,7 +126,7 @@ typedef enum {
 typedef struct cmc_hdr_t {
   uint16_t src;
   uint16_t dst;
-  uint8_t type;
+  uint8_t flags;
 } cmc_hdr_t;
 
 
@@ -135,10 +134,12 @@ typedef struct cmc_hdr_t {
 
 /* sync header */
 typedef struct cmc_sync_hdr_t {
-  uint16_t group_id;
   
-  // FIXME: what datatype to put here?
-  uint16_t public_key;
+  // FIXME: needed???
+  //uint16_t group_id;
+  
+  // FIXED: what datatype to put here?
+  ecc_point public_key;
 } cmc_sync_hdr_t;
 
 
