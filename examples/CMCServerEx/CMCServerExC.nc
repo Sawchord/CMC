@@ -33,13 +33,19 @@ configuration CMCServerExC {
   components new TimerMilliC() as Timer;
   CMCServerExP.Timer -> Timer;
   
-  components nre TimerMilliC() as LocalTime;
-  CMCClient.LocalTimer -> LocalTime;
+  components LocalTimeMilliC;
+  CMCClientExP.LocalTime -> LocalTimeMilliC;
   
   components ActiveMessageC;
   CMCServerExP.RadioControl -> ActiveMessageC;
   
-  components CMCServerC;
-  CMCServerExP.CMCServer -> CMCServerC;
+  components new CMCServerSocket() as Server0;
+  CMCServerExP.Server0 -> Server0;
   
+  
+  components EccC;
+  CMCClientExP.ECC -> EccC;
+ 
+  components SerialStartC;
+  components PrintfC;
 }
