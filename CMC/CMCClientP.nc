@@ -23,8 +23,9 @@
 
 #include "CMC.h"
 
-#include "tinypkc/ecc.h"
-#include "tinypkc/integer.h"
+#include "TinyECC/NN.h"
+#include "TinyECC/ECC.h"
+#include "TinyECC/ECIES.h"
 
 
 module CMCClientP {
@@ -39,6 +40,10 @@ module CMCClientP {
     interface Packet;
     interface AMSend;
     interface Receive;
+    
+    interface NN;
+    interface ECC;
+    interface ECIES;
     
   }
 } implementation {
@@ -88,7 +93,7 @@ module CMCClientP {
   
   /* ---------- command implementations ---------- */
   command error_t CMCClient.init[uint8_t client](uint16_t local_id,
-    void* buf, uint16_t buf_len, ecc_key* local_key) {
+    void* buf, uint16_t buf_len, cmc_keypair_t* local_key) {
     
     cmc_client_sock_t* sock = &socks[client];
     
@@ -99,14 +104,14 @@ module CMCClientP {
     sock->buf = buf;
     sock->buf_len = buf_len;
     
-    // FIXME: instead of pointer to ecc_key, generate key structure here
-    sock->local_key = local_key;
+    // TODO: instead of pointer to ecc_key, generate key structure here
+    sock->key = local_key;
     
   }
   
   
   command error_t CMCClient.connect[uint8_t client](uint16_t group_id,
-    ecc_point* remote_public_key) {
+    Point* remote_public_key) {
     
     
     cmc_hdr_t* main_header;
@@ -118,7 +123,6 @@ module CMCClientP {
     
     sock->state = CMC_PRECONNECTION;
     
-    // TODO: Send the sync packet
     main_header = (cmc_hdr_t*)(call Packet.getPayload(&pkt, 
       sizeof(main_header) + sizeof(sync_header)));
     
@@ -128,7 +132,7 @@ module CMCClientP {
     main_header->dst = group_id;
     main_header->flags = (1 << CMC_SYNC);
     
-    memcpy( &(sync_header->public_key), remote_public_key, sizeof(ecc_point) );
+    memcpy( &(sync_header->public_key), remote_public_key, sizeof(Point) );
     
     return (call AMSend.send(AM_CMC, &pkt, sizeof(main_header) + sizeof(sync_header)) );
     

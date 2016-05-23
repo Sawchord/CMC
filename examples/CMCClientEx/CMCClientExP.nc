@@ -23,8 +23,10 @@
 
 // TODO: includes
 
-#include <tinypkc/ecc.h>
-#include <tinypkc/integer.h>
+#include <NN.h>
+#include <ECC.h>
+#include <ECIES.h>
+#include <sha1.h>
 
 /* debug output */
 #ifdef DEBUG_OUT
@@ -36,20 +38,23 @@
 
 
 module CMCClientExP {
-uses {
-  interface Boot;
-  interface SplitControl as RadioControl;
-  
-  interface CMCClient as Client0;
-  
-  interface Leds;
-  
-  interface Timer<TMilli>;
-  interface LocalTime<TMilli>;
-  
-  interface Random;
-  
-  interface ECC;
+  uses {
+    interface Boot;
+    interface SplitControl as RadioControl;
+    
+    interface CMCClient as Client0;
+    
+    interface Leds;
+    
+    interface Timer<TMilli>;
+    interface LocalTime<TMilli>;
+    
+    interface Random;
+    
+    // The ECC interfaces
+    interface NN;
+    interface ECC;
+    interface ECIES;
   
   }
 } implementation {
@@ -64,10 +69,8 @@ uses {
   bool connecting = FALSE;
   bool sending = FALSE;
   
-  mp_digit  local_key_buff[4* MP_PREC];
-  ecc_key   local_key;
-  mp_digit  remote_key_buf[4* MP_PREC];
-  ecc_key   remote_key;
+  cmc_keypair_t client_key;
+  cmc_keypair_t server_key;
   
   event void Boot.booted() {
     oldtime = call LocalTime.get();
@@ -91,15 +94,14 @@ uses {
     // after the radio is up, initialze the local key, which is needed for the Client init
     
     oldtime = newtime;
-    call ECC.init_key(local_key_buff, 4 * MP_PREC, &local_key);
-    call ECC.import_private_key(MY_ECC_PRIVATE, MY_ECC_PRIVATE_LEN, 
-      MY_ECC_PUBLIC, MY_ECC_PUBLIC_LEN, &local_key);
     
+    call ECC.gen_private_key(client_key.priv);
+    call ECC.gen_private_key(server_key.priv);
     
-    call ECC.init_key(remote_key_buf, 4 * MP_PREC, &remote_key);
-    call ECC.import_x963(OTHER_ECC_PUBLIC, OTHER_ECC_PUBLIC_LEN, &remote_key);
+    call ECC.gen_public_key(&(client_key.pub), client_key.priv);
+    call ECC.gen_public_key(&(server_key.pub), server_key.priv);
     
-    call Client0.init(TOS_NODE_ID, &buffer, 1024, &local_key);
+    call Client0.init(TOS_NODE_ID, &buffer, 1024, &client_key);
     
     newtime = call LocalTime.get();
     DBG("Client socket initialzed after %d ms\n", (newtime - oldtime));
@@ -116,7 +118,7 @@ uses {
       DBG("Attempting to connect to server\n");
       
       connecting = TRUE;
-      call Client0.connect(1, &remote_key.pubkey);
+      call Client0.connect(1, &server_key.pub);
       return;
     }
   }

@@ -20,6 +20,10 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS."
  * 
  */
+#include "TinyECC/NN.h"
+#include "TinyECC/ECC.h"
+#include "TinyECC/ECIES.h"
+
 
 configuration CMCClientC {
   provides interface CMCClient[uint8_t client];
@@ -48,5 +52,11 @@ configuration CMCClientC {
   CMCClientP.Receive -> AMReceiverC;
     
   CMCClient = CMCClientP;
+  
+  // ECC components
+  components ECCC,NNM, ECIESC;
+  CMCClientP.NN -> NNM;
+  CMCClientP.ECC -> ECCC;
+  CMCClientP.ECIES -> ECIESC;
   
 }

@@ -21,6 +21,7 @@
  * 
  */
 
+ 
 configuration CMCClientExC {
   
 } implementation {
@@ -43,9 +44,14 @@ configuration CMCClientExC {
   components new CMCClientSocket() as Client0;
   CMCClientExP.Client0 -> Client0;
   
-  components EccC;
-  CMCClientExP.ECC -> EccC;
  
   components SerialStartC;
   components PrintfC;
+  
+  // ECC components
+  components ECCC,NNM, ECIESC;
+  CMCClientExP.NN -> NNM;
+  CMCClientExP.ECC -> ECCC;
+  CMCClientExP.ECIES -> ECIESC;
+  
 }

@@ -23,16 +23,18 @@
 
 #include "CMC.h"
 
-#include "tinypkc/ecc.h"
-#include "tinypkc/integer.h"
+#include "TinyECC/NN.h"
+#include "TinyECC/ECC.h"
+#include "TinyECC/ECIES.h"
 
 interface CMCClient {
   
   /* intializes the socket, call before use */
-  command error_t init(uint16_t local_id, void* buf, uint16_t buf_len, ecc_key* local_key);
+  command error_t init(uint16_t local_id, void* buf, uint16_t buf_len, 
+    cmc_keypair_t* local_key);
   
   /* connects this socket to the server */
-  command error_t connect(uint16_t group_id, ecc_point* remote_public_key);
+  command error_t connect(uint16_t group_id, Point* remote_public_key);
   
   /* send data over the cannel */
   command error_t send(void* data, uint16_t data_len);

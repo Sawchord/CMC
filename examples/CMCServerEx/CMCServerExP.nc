@@ -22,3 +22,57 @@
  */
  
 
+#include <tinypkc/ecc.h>
+#include <tinypkc/integer.h>
+
+/* debug output */
+#ifdef DEBUG_OUT
+#include <printf.h>
+#define DBG(...) printf(__VA_ARGS__); printfflush()
+#else
+#define DBG(...) 
+#endif
+
+
+module CMCServerExP {
+  uses {
+    interface Boot;
+    interface SlitControl as RadioControl;
+    
+    interface CMCServer as Server0;
+    
+    interface Leds;
+    
+    interface Timer<TMilli>;
+    interace LocalTime<TMilli>;
+    
+    interface Random;
+    
+    interface ECC;
+  }
+} implementation {
+  
+  uint32_t oldtime, newtime;
+  
+  uint8_t buffer[1024];
+  
+  bool connected = FALSE;
+  bool connecting = FALSE;
+  bool sending = FALSE;
+  
+  mp_digit  local_key_buff[4* MP_PREC];
+  ecc_key   local_key;
+  mp_digit  remote_key_buf[4* MP_PREC];
+  ecc_key   remote_key;
+  
+  
+  event void Boot.booted() {
+    oldtime = call LocalTime.get();
+    // start the radio
+    call RadioControl.start();
+    
+  }
+  
+  event void 
+}
+    
