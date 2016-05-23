@@ -23,13 +23,14 @@
 
 #include "CMC.h"
 
-#include "tinypkc/ecc.h"
-#include "tinypkc/integer.h"
+#include "TinyECC/NN.h"
+#include "TinyECC/ECC.h"
+#include "TinyECC/ECIES.h"
 
-interface CMCClient {
+interface CMCServer {
   
   /* intializes the socket, call before use */
-  command error_t init(uint16_t local_id, void* buf, uint16_t buf_len, ecc_key* local_key);
+  command error_t init(uint16_t local_id, void* buf, uint16_t buf_len, cmc_keypair_t* local_key);
   
   /* opens this socket for connections */
   command error_t bind(uint16_t group_id);

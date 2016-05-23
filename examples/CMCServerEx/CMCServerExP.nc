@@ -21,9 +21,10 @@
  * 
  */
  
-
-#include <tinypkc/ecc.h>
-#include <tinypkc/integer.h>
+#include <NN.h>
+#include <ECC.h>
+#include <ECIES.h>
+#include <sha1.h>
 
 /* debug output */
 #ifdef DEBUG_OUT
@@ -37,18 +38,21 @@
 module CMCServerExP {
   uses {
     interface Boot;
-    interface SlitControl as RadioControl;
+    interface SplitControl as RadioControl;
     
     interface CMCServer as Server0;
     
     interface Leds;
     
     interface Timer<TMilli>;
-    interace LocalTime<TMilli>;
+    interface LocalTime<TMilli>;
     
     interface Random;
     
+    interface NN;
     interface ECC;
+    interface ECIES;
+    
   }
 } implementation {
   
@@ -60,11 +64,8 @@ module CMCServerExP {
   bool connecting = FALSE;
   bool sending = FALSE;
   
-  mp_digit  local_key_buff[4* MP_PREC];
-  ecc_key   local_key;
-  mp_digit  remote_key_buf[4* MP_PREC];
-  ecc_key   remote_key;
-  
+  cmc_keypair_t client_key;
+  cmc_keypair_t server_key;
   
   event void Boot.booted() {
     oldtime = call LocalTime.get();
@@ -73,6 +74,45 @@ module CMCServerExP {
     
   }
   
-  event void 
+  event void RadioControl.startDone(error_t e) {
+    
+    if (e != SUCCESS) {
+      DBG("error starting radio... retry\n");
+      call RadioControl.start();
+      return;
+    }
+    
+  }
+  
+  event void RadioControl.stopDone(error_t e) {}
+  
+  
+  event void Timer.fired() {
+    if (!connected && !connecting) {
+      oldtime = call LocalTime.get();
+      DBG("Sending out me data\n");
+      
+      return;
+    }
+  }
+  
+  
+  event void Server0.connected(error_t e) {
+    
+  }
+  
+  event void Server0.sendDone(error_t e) {
+    sending = FALSE;
+  }
+  
+  event void Server0.closed(error_t e){
+    connected = FALSE;
+  }
+  
+  event void Server0.recv(void* payload, uint16_t plen) {
+    call Leds.set((uint8_t) payload);
+  }
+  
+  
 }
     

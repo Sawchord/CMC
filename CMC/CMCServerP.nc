@@ -23,8 +23,9 @@
  
 #include "CMC.h"
 
-#include "tinypkc/ecc.h"
-#include "tinypkc/integer.h"
+#include "TinyECC/NN.h"
+#include "TinyECC/ECC.h"
+#include "TinyECC/ECIES.h"
 
 module CMCServerP {
   provides interface CMCServer[uint8_t client];
@@ -38,15 +39,20 @@ module CMCServerP {
     interface Packet;
     interface AMSend;
     interface Receive;
+    
+    interface NN;
+    interface ECC;
+    interface ECIES;
+    
   }
 } implementation {
   
   enum {
-    N_LOCAL_SERVERS = uniqueCount("CMC_SERVER");
+    N_LOCAL_SERVERS = uniqueCount("CMC_SERVER"),
   };
   
   /* holds all sockets to cmc servers in an array */
-  cmc_server_sock_t[N_LOCAL_SERVERS];CMCCLientP
+  cmc_server_sock_t socks[N_LOCAL_SERVERS];
   
   /* --------- implemented events --------- */
   /* startup initialization */
@@ -72,8 +78,8 @@ module CMCServerP {
   }
   
   /* ---------- command implementations ---------- */
-  command error_t CMCServerP.init[uint8_t client](uint16_t local_id,
-    void* buf, uint16_t buf_len, ecc_key* local_key) {
+  command error_t CMCServer.init[uint8_t client](uint16_t local_id,
+    void* buf, uint16_t buf_len, cmc_keypair_t* local_key) {
     
   }
   
@@ -88,11 +94,11 @@ module CMCServerP {
   }
   
   
-  command error_t CMCServer.close[uint8_t client]() {
+  command error_t CMCServer.close[uint8_t client](uint16_t remote_id) {
     
   }
   
-  commant error_t CMCServer.shutdown[client]() {
+  command error_t CMCServer.shutdown[uint8_t client]() {
     
   }
   
@@ -103,5 +109,5 @@ module CMCServerP {
   
   default event void CMCServer.closed[uint8_t cid](error_t e) {}
   
-  default event void CMCServer.recv[uint8_t cid](error_t e) {}
+  default event void CMCServer.recv[uint8_t cid](void* payload, uint16_t plen) {}
 }

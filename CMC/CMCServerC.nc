@@ -20,6 +20,8 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS."
  * 
  */
+
+
 configuration CMCServerC {
   provides interface CMCServer[uint8_t server];
 } implementation {
@@ -41,8 +43,17 @@ configuration CMCServerC {
   components new AMReceiverC(AM_CMC);
 
 
-  App.Packet -> AMSenderC;
-  App.AMSend -> AMSenderC;
-  App.Receive -> AMReceiverC;
+  CMCServerP.Packet -> AMSenderC;
+  CMCServerP.AMSend -> AMSenderC;
+  CMCServerP.Receive -> AMReceiverC;
+  
+  
+  CMCServer = CMCServerP;
+  
+  // ECC components
+  components ECCC,NNM, ECIESC;
+  CMCServerP.NN -> NNM;
+  CMCServerP.ECC -> ECCC;
+  CMCServerP.ECIES -> ECIESC;
   
 }

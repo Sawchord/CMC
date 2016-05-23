@@ -8,19 +8,40 @@ PFLAGS += -DNEW_PRINTF_SEMANTICS
 CFLAGS += -I$(TOSDIR)/lib/printf
 CFLAGS += -DPRINTF_BUFFER_SIZE=256
 
+CFLAGS += -I$/../../CMC/TinyECC
+
 # Enable debug output
 CFLAGS += -DDEBUG_OUT
 
-#enable ecc testvalues and ecc160
-PFLAGS += ../../CMC/tinypkc/integer.c
-CFLAGS += -DECC160
+##choose curve parameter
+#CFLAGS+=-DSECP128R1
+#CFLAGS+=-DSECP128R2
+#CFLAGS+=-DSECP160K1
+CFLAGS+=-DSECP160R1
+#CFLAGS+=-DSECP160R2
+#CFLAGS+=-DSECP192K1
+#CFLAGS+=-DSECP192R1
 
-CFLAGS += -DMP_16BIT # set size of integer to 16 bit
-# note: this is machine dependent and now set for AVR
 
-CFLAGS += -DECC_TEST_VALUES # hardcoded test values in use for now
-CFLAGS += -DMP_PREC=40 # precision for the large interger packet
-CFLAGS += -DHAVE_ECC
+#use test vector for secp160r1 to show the correctness of TinyECC
+CFLAGS += -DTEST_VECTOR 
+#CFLAGS += -DEIGHT_BIT_PROCESSOR
+#CFLAGS+=-DCODE_SIZE
+
+##choose different optimization techniques
+##NN
+#CFLAGS+=-DBARRETT_REDUCTION  #barrett reduction
+CFLAGS+=-DHYBRID_MULT  #hybrid multipliation
+CFLAGS+=-DHYBRID_SQR  #hybrid squre
+CFLAGS+=-DCURVE_OPT  #optimization for secg curve
+##ECC
+CFLAGS+=-DPROJECTIVE  #projective coordinate
+CFLAGS+=-DSLIDING_WIN  #sliding window method, window size is defined in ECC.h
+##ECDSA
+CFLAGS+=-DSHAMIR_TRICK  #shamir trick, windows size is defined in ECDSAM.nc
+
+
+
 
 
 # Include the CMC folder

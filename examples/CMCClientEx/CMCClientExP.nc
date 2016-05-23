@@ -51,7 +51,6 @@ module CMCClientExP {
     
     interface Random;
     
-    // The ECC interfaces
     interface NN;
     interface ECC;
     interface ECIES;

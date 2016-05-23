@@ -20,10 +20,6 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS."
  * 
  */
-#include "TinyECC/NN.h"
-#include "TinyECC/ECC.h"
-#include "TinyECC/ECIES.h"
-
 
 configuration CMCClientC {
   provides interface CMCClient[uint8_t client];
