@@ -9,6 +9,7 @@ CFLAGS += -I$(TOSDIR)/lib/printf
 CFLAGS += -DPRINTF_BUFFER_SIZE=256
 
 CFLAGS += -I$/../../CMC/TinyECC
+CFLAGS += -I$/../../CMC/crypto
 
 # Enable debug output
 CFLAGS += -DDEBUG_OUT

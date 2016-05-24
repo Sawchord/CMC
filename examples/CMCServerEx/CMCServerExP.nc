@@ -60,10 +60,11 @@ module CMCServerExP {
   
   uint8_t buffer[1024];
   
-  bool connected = FALSE;
-  bool connecting = FALSE;
-  bool sending = FALSE;
+  uint8_t next_node = 0;
   
+  bool server_starting = FALSE;
+  bool server_up = FALSE;
+  bool sending = FALSE;
   cmc_keypair_t client_key;
   cmc_keypair_t server_key;
   
@@ -82,35 +83,61 @@ module CMCServerExP {
       return;
     }
     
+    newtime = call LocalTime.get();
+    DBG("Radio is up after %d ms\n", (newtime - oldtime));
+    
+    // after the radio is up, initialze the local key, which is needed for the Client init
+    
+    oldtime = newtime;
+    
+    call ECC.gen_private_key(client_key.priv);
+    call ECC.gen_private_key(server_key.priv);
+    
+    call ECC.gen_public_key(&(client_key.pub), client_key.priv);
+    call ECC.gen_public_key(&(server_key.pub), server_key.priv);
+    
+    call Server0.init(TOS_NODE_ID, &buffer, 1024, &server_key);
+    call Server0.bind(1337);
+    
+    newtime = call LocalTime.get();
+    DBG("Client socket initialzed after %d ms\n", (newtime - oldtime));
+    
+    call Timer.startPeriodic(2000);
+    
   }
   
   event void RadioControl.stopDone(error_t e) {}
   
   
   event void Timer.fired() {
-    if (!connected && !connecting) {
+    if (!server_up && !server_starting) {
       oldtime = call LocalTime.get();
-      DBG("Sending out me data\n");
+      DBG("Error while sending out me data\n");
       
       return;
     }
+    
+    if(call Server0.send(next_node, &next_node, 1) != SUCCESS) {
+      DBG("Could not send data to %d\n", next_node);
+    }
+    next_node++;
+    
   }
   
   
   event void Server0.connected(error_t e) {
-    
   }
   
   event void Server0.sendDone(error_t e) {
     sending = FALSE;
   }
   
-  event void Server0.closed(error_t e){
-    connected = FALSE;
+  event void Server0.closed(uint16_t remote_id, error_t e){
+    
   }
   
   event void Server0.recv(void* payload, uint16_t plen) {
-    call Leds.set((uint8_t) payload);
+    //call Leds.set((uint8_t) payload);
   }
   
   

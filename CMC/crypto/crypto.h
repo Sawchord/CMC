@@ -32,6 +32,10 @@
 /*
  * Context for block cipher.
  */
+
+#ifndef CRYPTO_H
+#define CRYPTO_H
+
 typedef struct CipherContext {
 	// rc5      needs 104 bytes
 	// skipjack needs 32 * 4 = 128 bytes.
@@ -54,3 +58,5 @@ typedef struct RandomContext {
 } __attribute__ ((packed)) RandomContext;
 
 #define DBG_CRYPTO "DBG_CRYPTO"
+
+#endif /* CRYTO_H */

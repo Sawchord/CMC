@@ -30,6 +30,8 @@
 #include "TinyECC/ECC.h"
 #include "TinyECC/ECIES.h"
 
+#include "crypto/crypto.h"
+
 /* the cannel for the MCMC network to operate on */
 #ifndef AM_CMC
 #define AM_CMC 8
@@ -44,6 +46,11 @@
 /* the maximum number of clients a server can have */
 #ifndef CMC_MAX_CLIENTS
 #define CMC_MAX_CLIENTS 16
+#endif
+
+/* the length of the callenge and response message */
+#ifndef CMC_CALLRES_LENGTH
+#define CMC_CALLRES_LENGTH 20
 #endif
 
 /* hold a keypair */
@@ -63,19 +70,24 @@ typedef struct cmc_server_sock_t {
   
   uint16_t state;
   
+  
   /* the local id is the id, which other nodes refer to this node */
   uint16_t local_id;
+  
   
   /* the group id, which the nodes use to identify this group */
   uint16_t group_id;
   
+  
   /* this connections private and public key */
   cmc_keypair_t* key;
   
-  /* the server needs to keep some information about every connected client independently */
+  
+  /* the server needs to keep some information about 
+   * every connected client independently */
   cmc_client_connection_t connection[CMC_MAX_CLIENTS];
   
-  // TODO: allowed key whitelist to be compiled into code
+  // TODO: key whitelist to be compiled into code
   
 } cmc_server_sock_t;
 
@@ -86,13 +98,16 @@ typedef struct cmc_client_sock_t {
   
   uint16_t state;
   
+  
   /* ids work the same as in the server */
   uint16_t local_id;
   uint16_t group_id;
   
+  
   /* the buffer that is used to construct data before sending */
   void* buf;
   uint16_t buf_len;
+  
   
   /* this connections private and public key */
   cmc_keypair_t* key;
@@ -122,6 +137,7 @@ typedef enum {
   CMC_KEY = 0x20,
   CMC_ACK = 0x40,
   CMC_DATA = 0x80,
+  //CMC_MCAST = 0x100,
 } cmc_flag_e;
 
 
@@ -137,13 +153,26 @@ typedef struct cmc_hdr_t {
 
 /* sync header */
 typedef struct cmc_sync_hdr_t {
-  
-  // FIXME: needed???
-  //uint16_t group_id;
-  
   Point public_key;
 } cmc_sync_hdr_t;
 
+/* challenge and response header */
+typedef struct cmc_callres_hdr_t {
+  uint8_t cr[CMC_CALLRES_LENGTH];
+} cmc_callres_hdr_t;
+
+/* finish and error header */
+typedef struct cmc_ferr_hdr_t {
+  uint16_t message;
+} cmc_ferr_hdr_t;
 
 
-#endif
+typedef struct cmc_key_hdr_t {
+  CipherContext context;
+} cmc_key_hdr_t;
+
+typedef struct cmc_msg_hdr_t {
+  uint16_t length;
+} cmc_msg_hdr_t;
+
+#endif /* CMC_H */

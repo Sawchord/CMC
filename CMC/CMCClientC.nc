@@ -55,4 +55,10 @@ configuration CMCClientC {
   CMCClientP.ECC -> ECCC;
   CMCClientP.ECIES -> ECIESC;
   
+  components CTRModeM;
+  components AES128M;
+  
+  CMCClientP.BlockCipher -> AES128M;
+  //CMCClientP.BlockCipherInfo -> AES128M;
+  
 }

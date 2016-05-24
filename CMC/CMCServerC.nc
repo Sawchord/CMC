@@ -56,4 +56,10 @@ configuration CMCServerC {
   CMCServerP.ECC -> ECCC;
   CMCServerP.ECIES -> ECIESC;
   
+  components CTRModeM;
+  components AES128M;
+  
+  CMCServerP.BlockCipher -> AES128M;
+  //CMCServerP.BlockCipherInfo -> AES128M;
+  
 }

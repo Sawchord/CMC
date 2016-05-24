@@ -37,7 +37,7 @@ interface CMCClient {
   command error_t connect(uint16_t group_id, Point* remote_public_key);
   
   /* send data over the cannel */
-  command error_t send(void* data, uint16_t data_len);
+  command error_t send(uint16_t id, void* data, uint16_t data_len);
   
   /* closes this connection */
   command error_t close();

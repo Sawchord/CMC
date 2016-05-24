@@ -27,6 +27,8 @@
 #include "TinyECC/ECC.h"
 #include "TinyECC/ECIES.h"
 
+#include "crypto/crypto.h"
+
 module CMCServerP {
   provides interface CMCServer[uint8_t client];
   provides interface Init;
@@ -39,6 +41,8 @@ module CMCServerP {
     interface Packet;
     interface AMSend;
     interface Receive;
+    
+    interface BlockCipher;
     
     interface NN;
     interface ECC;
@@ -57,7 +61,7 @@ module CMCServerP {
   /* --------- implemented events --------- */
   /* startup initialization */
   command error_t Init.init() {
-    
+    // TODO: set all socks to close
   }
   
   /* start the timer */
@@ -75,21 +79,58 @@ module CMCServerP {
   
   event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len) {
     
+    // TODO HERE TOMOROW
+    
+    cmc_hdr_t* msg_header = payload;
+    
+    // this pointer points to the next uninterpreted data in the payload buffer
+    void* current_pointer = payload;
+    current_pointer += sizeof(msg_header);
+    
+    if (msg_header->flags & CMC_SYNC) {
+      
+      
+      
+    }
+    
   }
   
   /* ---------- command implementations ---------- */
   command error_t CMCServer.init[uint8_t client](uint16_t local_id,
     void* buf, uint16_t buf_len, cmc_keypair_t* local_key) {
     
-  }
-  
-  
-  command error_t CMCServer.bind[uint8_t client](uint16_t group_id) {
+    
+    int i = 0;
+    
+    cmc_server_sock_t* sock = &socks[client];
+    
+    sock->state = CMC_CLOSED;
+    sock->local_id = local_id;
+    
+    sock->key = local_key;
+    
+    
+    // initialize all connections to an initial state
+    for(i = 0; i < CMC_MAX_CLIENTS; i++) {
+      sock->connection[i].remote_id = 0xffff;
+      sock->connection[i].state = CMC_CLOSED;
+    }
     
   }
   
   
-  command error_t CMCServer.send[uint8_t client](void* data, uint16_t data_len) {
+  command error_t CMCServer.bind[uint8_t client](uint16_t group_id) {
+    //TODO:generate master key
+    cmc_server_sock_t* sock = &socks[client];
+    sock->group_id = group_id;
+    
+    sock->state = CMC_LISTEN;
+    
+  }
+  
+  
+  command error_t CMCServer.send[uint8_t client](uint16_t id, 
+    void* data, uint16_t data_len) {
     
   }
   
@@ -107,7 +148,7 @@ module CMCServerP {
   
   default event void CMCServer.sendDone[uint8_t cid](error_t e) {}
   
-  default event void CMCServer.closed[uint8_t cid](error_t e) {}
+  default event void CMCServer.closed[uint8_t cid](uint16_t remote_id, error_t e) {}
   
   default event void CMCServer.recv[uint8_t cid](void* payload, uint16_t plen) {}
 }

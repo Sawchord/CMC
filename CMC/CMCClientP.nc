@@ -27,6 +27,7 @@
 #include "TinyECC/ECC.h"
 #include "TinyECC/ECIES.h"
 
+#include "crypto/crypto.h"
 
 module CMCClientP {
   provides interface CMCClient[uint8_t client];
@@ -40,6 +41,8 @@ module CMCClientP {
     interface Packet;
     interface AMSend;
     interface Receive;
+    
+    interface BlockCipher;
     
     interface NN;
     interface ECC;
@@ -139,7 +142,9 @@ module CMCClientP {
   }
   
   
-  command error_t CMCClient.send[uint8_t client](void* data, uint16_t data_len) {
+  command error_t CMCClient.send[uint8_t client](uint16_t id,
+    void* data, uint16_t data_len) {
+    
     
   }
   
