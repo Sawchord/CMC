@@ -31,6 +31,11 @@ DATA
 Since the content of these field may change heavily, for content refer to CMC.h
 
 Here comes a description of the commands and event in pseudocode:
+NOTE: for better understanding, the actions are in the order, which makes 
+the most sense, not the safes one.
+A better order would be, to put message to the end of an action and only
+signaling behind that. 
+STATE changes should be done at beginning ????
 
 Server init:
 Set local_id, buf_len and keys set SYNC_STATE to CLOSED and MSGS_STATE to CLOSED, return
@@ -73,7 +78,8 @@ Is it a RESPONSE packet?
     no: drop packet and return
     yes: Is response correct?
       no: send err with incorrect_response, set SYNC_STATE to LISTEN and return
-      yes: send current context, set SYNC_STATE to LISTEN and return
+      yes: encrypt and send masterkey, set SYNC_STATE to LISTEN 
+        signal user a connected and return
 Is it a DATA packet?
   yes: is MSGS_STATE in ESTABLISHED?
     no: drop packet and return
@@ -88,14 +94,14 @@ Is it an ACK packet?
     no: drop packet and return
     yes: Is hash correct?
       no: send ferr with incorrect_checksum to dest and src, 
-        set MSGS_STATE to ESTABLISHED and return
+        set MSGS_STATE to ESTABLISHED and return NEEDED???
       yes: Is this node source?
         no: send ACK to src, set MSGS_STATE to ESTABLISHED and return
         yes: signal user sendDone, set MSGS_STATE to ESTABLISHED and return
-Is it a FIN packet?
-  yes: MSGS_STATE in CLOSED?
-    yes: drop packet and return
-    no: signal user, that src has closed and return
+//Is it a FINISH packet?
+//  yes: MSGS_STATE in CLOSED?
+//    yes: drop packet and return
+//    no: signal user, that src has closed and return
 Is it an ERR packet?
   yes: Error handling
 
@@ -129,18 +135,61 @@ STATES in CLOSED:
   yes: raise error
   no: send FINISH packet to server, set both STATE to CLOSED and return
 
+  
+Server send:
+MSGS_STATE in ESTABLISHED?
+  no: raise error
+  yes: hash message and encrypt message and hash, then send them, set MSGS_STATE to ACKPENDING and return
+  
 Client send:
+  STATE in ESTABLISHED?
+    no: raise error
+    yes: hash message, encrypt hash and message, send them, 
+      set STATE to ACKPENDING and return
 
 Client receive:
 Is it a SYNC or RESPONSE packet:
   Yes: drop and return
+Has any socket a matching group_id?
+  no: ignore and return
+  yes: select that socket
 Is it a CHALLENGE?
   Is STATE in PRECONNECTION:
     no: drop packet and return
     yes: solve the challenge, send it, set STATE to AUTH an return
-TODO
-
+Is it a KEY packet?
+  STATE in PRECONNECTION or AUTH?
+    no: ignore and return
+    yes: decrypt and set master key, set STATE to ESTABLISHED, 
+      signal connect done and return
+Is it a DATA packet?
+  STATE in ESTABLISHED?
+    yes: Is it MCAST?
+      yes: decrypt, signal data to user and return?
+      no: This node is destionation?
+        no: Decrypt and return
+        yes: Decrypt, signal data to user, hash decrypted message, 
+          send ACK, set STATE to ACKPENGING and return
+  STATE in ACKPENDING?
+    yes: Same message as last message send?
+      no: signal error and return
+      yes:
+    
+Is it an ACK packet?
+  STATE in ACKPENDING?
+    no: ignore and return
+    yes: Is hash correct?
+      no: send error with incorrect_checksum to src and dst, then return
+      yes: signal user sendDone, set STATE to ESTABLISHED and return
+//is it a FINNISH packet?
+//  yes: STATE in CLOSED:
+//    yes: ignore
+//    no: set STATE to and closed, signal user and return
+Is it and ERR packet?
+  yes: error handling
+  
 Client Timer:
-
+Timer elapsed?
+  yes: 
 
 

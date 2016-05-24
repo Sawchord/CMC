@@ -107,8 +107,7 @@ module CMCClientP {
     sock->buf = buf;
     sock->buf_len = buf_len;
     
-    // TODO: instead of pointer to ecc_key, generate key structure here
-    sock->key = local_key;
+    sock->asym_key = local_key;
     
   }
   
@@ -117,27 +116,6 @@ module CMCClientP {
     Point* remote_public_key) {
     
     
-    cmc_hdr_t* main_header;
-    cmc_sync_hdr_t* sync_header;
-    
-    // set the global parameters
-    cmc_client_sock_t* sock = &socks[client];
-    sock->group_id = group_id;
-    
-    sock->state = CMC_PRECONNECTION;
-    
-    main_header = (cmc_hdr_t*)(call Packet.getPayload(&pkt, 
-      sizeof(main_header) + sizeof(sync_header)));
-    
-    sync_header = main_header + sizeof(main_header);
-    
-    main_header->src = sock->local_id;
-    main_header->dst = group_id;
-    main_header->flags = (1 << CMC_SYNC);
-    
-    memcpy( &(sync_header->public_key), remote_public_key, sizeof(Point) );
-    
-    return (call AMSend.send(AM_CMC, &pkt, sizeof(main_header) + sizeof(sync_header)) );
     
   }
   

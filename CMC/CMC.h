@@ -68,24 +68,24 @@ typedef struct cmc_client_connection_t {
 /* the cmc server socket*/
 typedef struct cmc_server_sock_t {
   
-  uint16_t state;
-  
+  uint8_t sync_state;
+  uint8_t msgs_state;
   
   /* the local id is the id, which other nodes refer to this node */
   uint16_t local_id;
   
-  
   /* the group id, which the nodes use to identify this group */
   uint16_t group_id;
   
+  /* buffer, for message construction */
+  void* buf;
+  uint16_t buf_len;
   
   /* this connections private and public key */
-  cmc_keypair_t* key;
+  cmc_keypair_t* asym_key;
   
-  
-  /* the server needs to keep some information about 
-   * every connected client independently */
-  cmc_client_connection_t connection[CMC_MAX_CLIENTS];
+  /* The AES key context, the shared secret between the nodes */
+  CipherContext master_key;
   
   // TODO: key whitelist to be compiled into code
   
@@ -96,8 +96,7 @@ typedef struct cmc_server_sock_t {
 /* the cmc client socket*/
 typedef struct cmc_client_sock_t {
   
-  uint16_t state;
-  
+  uint8_t state;
   
   /* ids work the same as in the server */
   uint16_t local_id;
@@ -129,15 +128,14 @@ typedef enum {
 
 /* cmc type flags */
 typedef enum {
-  CMC_SYNC = 0x1,
-  CMC_FINISH = 0x2,
-  CMC_ERR = 0x4,
-  CMC_CHALLENGE = 0x8,
-  CMC_RESPONSE = 0x10,
-  CMC_KEY = 0x20,
-  CMC_ACK = 0x40,
-  CMC_DATA = 0x80,
-  //CMC_MCAST = 0x100,
+  CMC_SYNC = 0x0,
+  CMC_FINISH,
+  CMC_ERR,
+  CMC_CHALLENGE,
+  CMC_RESPONSE,
+  CMC_KEY,
+  CMC_ACK,
+  CMC_DATA,
 } cmc_flag_e;
 
 

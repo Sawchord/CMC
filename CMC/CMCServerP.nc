@@ -61,7 +61,13 @@ module CMCServerP {
   /* --------- implemented events --------- */
   /* startup initialization */
   command error_t Init.init() {
-    // TODO: set all socks to close
+    uint8_t i;
+    
+    for (i = 0; i < N_LOCAL_SERVERS; i++) {
+      
+      // set all sockets to closed
+      socks[i].state = CMC_CLOSED;
+    }
   }
   
   /* start the timer */
@@ -79,20 +85,6 @@ module CMCServerP {
   
   event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len) {
     
-    // TODO HERE TOMOROW
-    
-    cmc_hdr_t* msg_header = payload;
-    
-    // this pointer points to the next uninterpreted data in the payload buffer
-    void* current_pointer = payload;
-    current_pointer += sizeof(msg_header);
-    
-    if (msg_header->flags & CMC_SYNC) {
-      
-      
-      
-    }
-    
   }
   
   /* ---------- command implementations ---------- */
@@ -107,7 +99,7 @@ module CMCServerP {
     sock->state = CMC_CLOSED;
     sock->local_id = local_id;
     
-    sock->key = local_key;
+    sock->asym_key = local_key;
     
     
     // initialize all connections to an initial state
