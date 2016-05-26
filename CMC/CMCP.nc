@@ -101,14 +101,52 @@ module CMCP {
   command error_t CMC.init[uint8_t client](uint16_t local_id, 
     NN_DIGIT* private_key, Point* public_key) {
     
+    cmc_sock_t* sock = socks[client];
+    
+    sock->local_id = local_id;
+    
+    sock->private_key = private_key;
+    sock->public_key = public_key;
+    
   }
   
   
   command error_t CMC.bind[uint8_t client](uint16_t group_id) {
     
+    uint8_t i;
+    uint8_t key[16];
+    cmc_sock_t* sock = socks[client];
+    
+    // check, that socket is in intial state
+    if (sock->sync_state != CMC_CLOSED || sock->com_state != CMC_CLOSED) {
+      DBG("error in bind, socket is not in initial state\n");
+      return FAIL;
+    }
+    
+    
+    sock->group_id = group_id;
+    
+    // set the client specific fields to self
+    sock->server_id = sock->local_id;
+    sock->server_public_key = public_key;
+    
+    sock->sync_state = CMC_LISTEN;
+    sock->com_state = CMC_ESTABLISHED;
+    
+    // generate Masterkey
+    for (i = 0; i < 16; i++) {
+      key[i] = call Random.rand8();
+    }
+    
+    if (call BlockCipher.init(&(sock->master_key), 16, 16, key) != SUCCESS) {
+            DBG("error while generating masterkey\n");
+            return FAIL;
+    }
+    
+    return SUCCESS;
   }
   
-  command error_t CMCClient.connect[uint8_t client](uint16_t group_id,
+  command error_t CMC.connect[uint8_t client](uint16_t group_id,
     Point* remote_public_key) {
     
     
@@ -127,11 +165,11 @@ module CMCP {
   
   
   /* --------- default events -------- */
-  default event void CMC.connected[uint8_t cid](cmc_error_t e) {}
+  default event void CMC.connected[uint8_t cid](error_t e) {}
   
-  default event void CMC.sendDone[uint8_t cid](cmc_error_t e) {}
+  default event void CMC.sendDone[uint8_t cid](error_t e) {}
   
-  default event void CMC.closed[uint8_t cid](uint16_t remote_id, cmc_error_t e) {}
+  default event void CMC.closed[uint8_t cid](uint16_t remote_id, error_t e) {}
   
   default event void CMC.recv[uint8_t cid](void* payload, uint16_t plen) {}
 }

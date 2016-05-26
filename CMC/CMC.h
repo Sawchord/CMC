@@ -84,6 +84,8 @@ typedef struct cmc_sock_t {
   /* buffer, for message construction */
   uint8_t last_msgs[CMC_MAX_MSG_LENGTH];
   
+  // TODO: need hash buffer or something?
+  
   /* this connections private and public key */
   NN_DIGIT* private_key;
   Point* public_key;
@@ -119,15 +121,6 @@ typedef enum {
   CMC_ACK,
   CMC_DATA,
 };
-
-
-/* CMC error codes */
-enum {
-  CMC_SUCCESS,
-};
-
-typedef uint8_t cmc_error_t;
-
 
 
 /* cmc header type */

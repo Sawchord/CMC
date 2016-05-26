@@ -103,14 +103,13 @@ Is it a DATA packet?
   yes: Is COM_STATE in ESTABLISHED?
        Decrypt the message, this updates the CipherContex
        Is this Server?
-         yes: Resend the message
-              Is this Node the destination?
-                yes: Signal User the message, send out ACK and return
-                     Is this MCAST?
-                       yes: Signal User message and return
-      no: Is this Server?
-        yes: 
-        no: return
+         yes: Resend the message set COM_STATE to ACKPENDING2
+       Is this Node the destination?
+         yes: Signal User the message, send out ACK and return
+         no: Is this Server?
+          yes: r
+       Is this MCAST?
+          yes: Signal User message and return
       
   Is COM_STATE in ACKPENDING1?  
     yes: Is Server?
