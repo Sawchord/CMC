@@ -29,8 +29,16 @@
 
 #include "crypto/crypto.h"
 
-module CMCServerP {
-  provides interface CMCServer[uint8_t client];
+/* the client only option hints the compiler 
+ * to remove all server related if expressions */
+#ifdef CMC_CLIENT_ONLY
+#define IS_SERVER 0
+#else
+#define IS_SERVER sock->sync_state != CMC_CLOSED
+#endif
+
+module CMCP {
+  provides interface CMC[uint8_t client];
   provides interface Init;
   uses {
     interface Boot;
@@ -52,22 +60,27 @@ module CMCServerP {
 } implementation {
   
   enum {
-    N_LOCAL_SERVERS = uniqueCount("CMC_SERVER"),
+    N_SOCKS = uniqueCount("CMC_SOCKS"),
   };
   
   /* holds all sockets to cmc servers in an array */
-  cmc_server_sock_t socks[N_LOCAL_SERVERS];
+  cmc_server_sock_t socks[N_SOCKS];
   
   /* --------- implemented events --------- */
   /* startup initialization */
   command error_t Init.init() {
     uint8_t i;
     
-    for (i = 0; i < N_LOCAL_SERVERS; i++) {
+    for (i = 0; i < N_SOCKS; i++) {
       
       // set all sockets to closed
-      socks[i].state = CMC_CLOSED;
+      socks[i].sync_state = CMC_CLOSED;
+      socks[i].com_state = CMC_CLOSED;
     }
+  }
+  
+  event void AMSend.sendDone(message_t* msg, error_t error) {
+    
   }
   
   /* start the timer */
@@ -79,68 +92,46 @@ module CMCServerP {
     
   }
   
-  event void AMSend.sendDone(message_t* msg, error_t error) {
-    
-  }
   
   event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len) {
     
   }
   
   /* ---------- command implementations ---------- */
-  command error_t CMCServer.init[uint8_t client](uint16_t local_id,
-    void* buf, uint16_t buf_len, cmc_keypair_t* local_key) {
-    
-    
-    int i = 0;
-    
-    cmc_server_sock_t* sock = &socks[client];
-    
-    sock->state = CMC_CLOSED;
-    sock->local_id = local_id;
-    
-    sock->asym_key = local_key;
-    
-    
-    // initialize all connections to an initial state
-    for(i = 0; i < CMC_MAX_CLIENTS; i++) {
-      sock->connection[i].remote_id = 0xffff;
-      sock->connection[i].state = CMC_CLOSED;
-    }
+  command error_t CMC.init[uint8_t client](uint16_t local_id, 
+    NN_DIGIT* private_key, Point* public_key) {
     
   }
   
   
-  command error_t CMCServer.bind[uint8_t client](uint16_t group_id) {
-    //TODO:generate master key
-    cmc_server_sock_t* sock = &socks[client];
-    sock->group_id = group_id;
-    
-    sock->state = CMC_LISTEN;
+  command error_t CMC.bind[uint8_t client](uint16_t group_id) {
     
   }
   
+  command error_t CMCClient.connect[uint8_t client](uint16_t group_id,
+    Point* remote_public_key) {
+    
+    
+    
+  }
   
-  command error_t CMCServer.send[uint8_t client](uint16_t id, 
+  command error_t CMC.send[uint8_t client](uint16_t id, 
     void* data, uint16_t data_len) {
     
   }
   
   
-  command error_t CMCServer.close[uint8_t client](uint16_t remote_id) {
+  command error_t CMC.close[uint8_t client]() {
     
   }
   
-  command error_t CMCServer.shutdown[uint8_t client]() {
-    
-  }
   
   /* --------- default events -------- */
-  default event void CMCServer.connected[uint8_t cid](error_t e) {}
+  default event void CMC.connected[uint8_t cid](cmc_error_t e) {}
   
-  default event void CMCServer.sendDone[uint8_t cid](error_t e) {}
+  default event void CMC.sendDone[uint8_t cid](cmc_error_t e) {}
   
-  default event void CMCServer.closed[uint8_t cid](uint16_t remote_id, error_t e) {}
+  default event void CMC.closed[uint8_t cid](uint16_t remote_id, cmc_error_t e) {}
   
-  default event void CMCServer.recv[uint8_t cid](void* payload, uint16_t plen) {}
+  default event void CMC.recv[uint8_t cid](void* payload, uint16_t plen) {}
 }

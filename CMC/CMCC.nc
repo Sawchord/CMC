@@ -20,12 +20,46 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS."
  * 
  */
-generic configuration CMCClientSocket() {
-  provides interface CMCClient;
+
+
+configuration CMCC {
+  provides interface CMC[uint8_t client];
 } implementation {
+  
+  components MainC;
+  components new TimerMilliC();
+  components RandomC;
+  
+  components CMCP;
+  
+  MainC -> CMCP.Init;
+  CMCP.Boot -> MainC;
+  
+  CMCP.Timer -> TimerMilliC;
+  CMCP.Random -> RandomC;
+  
+  /* radio components */
+  components new AMSenderC(AM_CMC);
+  components new AMReceiverC(AM_CMC);
 
-  components CMCClientC;
 
-  CMCClient = CMCClientC.CMCClient[unique("CMC_CLIENT")];
+  CMCP.Packet -> AMSenderC;
+  CMCP.AMSend -> AMSenderC;
+  CMCP.Receive -> AMReceiverC;
+  
+  
+  CMC = CMCP;
+  
+  // ECC components
+  components ECCC,NNM, ECIESC;
+  CMCP.NN -> NNM;
+  CMCP.ECC -> ECCC;
+  CMCP.ECIES -> ECIESC;
+  
+  components CTRModeM;
+  components AES128M;
+  
+  CMCP.BlockCipher -> AES128M;
+  //CMCP.BlockCipherInfo -> AES128M;
   
 }

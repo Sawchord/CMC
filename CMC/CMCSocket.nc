@@ -20,46 +20,12 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS."
  * 
  */
-
-
-configuration CMCServerC {
-  provides interface CMCServer[uint8_t server];
+generic configuration CMCSocket() {
+  provides interface CMC;
 } implementation {
-  
-  components MainC;
-  components new TimerMilliC();
-  components RandomC;
-  
-  components CMCServerP;
-  
-  MainC -> CMCServerP.Init;
-  CMCServerP.Boot -> MainC;
-  
-  CMCServerP.Timer -> TimerMilliC;
-  CMCServerP.Random -> RandomC;
-  
-  /* radio components */
-  components new AMSenderC(AM_CMC);
-  components new AMReceiverC(AM_CMC);
 
+  components CMCC;
 
-  CMCServerP.Packet -> AMSenderC;
-  CMCServerP.AMSend -> AMSenderC;
-  CMCServerP.Receive -> AMReceiverC;
-  
-  
-  CMCServer = CMCServerP;
-  
-  // ECC components
-  components ECCC,NNM, ECIESC;
-  CMCServerP.NN -> NNM;
-  CMCServerP.ECC -> ECCC;
-  CMCServerP.ECIES -> ECIESC;
-  
-  components CTRModeM;
-  components AES128M;
-  
-  CMCServerP.BlockCipher -> AES128M;
-  //CMCServerP.BlockCipherInfo -> AES128M;
+  CMC = CMCC.CMC[unique("CMC_SOCKS")];
   
 }

@@ -1,0 +1,168 @@
+States:
+CLOSED
+LISTEN
+ESTABLISHED
+ACKPENDING1
+ACKPENDING2
+PRECONNECTION
+
+Socket fields
+
+SYNC_STATE
+COM_STATE 
+
+sync_retry_counter
+retry_counter
+retry_timer
+
+local_id
+group_id
+server_id
+
+last_packet
+
+public_key*
+private_key*
+
+server_public_key*
+
+master_key
+
+
+Events presented to the user:
+connectDone: 
+  Informs user, if connection was successfull, on Server also tells User the local_id
+
+sendDone:
+  Inform user, if message was send succesfully, and that sending more stuff is now possible
+
+
+
+Commands presented to user:
+
+Init [local_id, keys]:
+  Sets local_id and the pointers to private and public key
+  
+
+Bind [client][group_id]:
+Select socket to client
+Are both STATES in CLOSED?
+  no: error and return
+  yes: set SYNC_STATE to LISTEN and COM_STATE to ESTABLISHED
+       set group_id, generate masterkey, return
+  
+Connect [client][group_id, server_public_key]:
+Select socket to client
+Are both STATES in CLOSED?
+  no: error and return
+  yes: set COM_STATE to PRECONNECTION, set group_id, set server_public_key
+       set retry_counter to 0, retry_timer, send SYNC packet, return
+
+Send [client][destination, payload, plen]:
+Select socket of client
+Is COM_STATE in ESTABLISHED?
+  no: error and return
+Payload smaller than MAX_PAYLOAD
+  no: error and return
+Hash message, encrypt message and hash, fill in length field save and send
+Was MCAST (address ffff)?
+  no: Is Server?
+      no: set COM_STATE to ACKPENDING1 and return
+      yes: set COM_STATE to ACKPENDING2 and return
+    
+return
+
+Close:
+set COM_STATE to closed and return
+
+Events to implement:
+Init:
+  Sets all STATES to CLOSED and return
+
+
+Receive:
+Any socket has matching group_id?
+  no: return
+Select that socket
+Is it a SYNC packet:
+  yes: Is this Server?:
+         no: return
+      encrypt masterkey with the ecc public key, 
+      assemble KEY message containing master_key
+      send message
+return
+Is it a KEY packet?
+  yes: Is Server?
+    yes: return
+          Is COM_STATE in PRECONNECTION?
+            no: return
+            yes: set the packets src as server_id, the key as masterkey
+                 change COM_STATE to ESTABLISHED
+                 signal connectDone successfull to the user and return
+Is it a DATA packet?
+  yes: Is COM_STATE in ESTABLISHED?
+       Decrypt the message, this updates the CipherContex
+       Is this Server?
+         yes: Resend the message
+              Is this Node the destination?
+                yes: Signal User the message, send out ACK and return
+                     Is this MCAST?
+                       yes: Signal User message and return
+      no: Is this Server?
+        yes: 
+        no: return
+      
+  Is COM_STATE in ACKPENDING1?  
+    yes: Is Server?
+      return
+    no: compare last_message with recv msgs?
+  Is COM_STATE i ACKPENDING2?
+    yes:
+  
+    
+Is it an ACK packet?
+  yes:TODO
+  
+Timer:
+Timer is already 0?
+  yes: return
+Update timer
+Timer elapsed?
+  no: return
+  yes: decrease retry_counter
+COM_STATE in ACKPENDING1:
+  yes: Is server?
+        no: return (should never happen)
+        yes: retry_counter is 0?
+             no: reset retry_timer, resent saved Packet
+             yes: signal sendDone with error code, set COM_STATE to ESTABLISHED
+COM_STATE in ACKPENDING2?
+    yes: retry_counter is 0?
+         yes: set COM_STATE to ESTABLISHED
+         Last signal was addressed to this Node?
+           yes: signal user sendDone with error code and return
+           no: Is Server?
+              yes: reset retry_timer , resend message and return
+              no: reset retry_timer and return
+COM_STATE in PRECONNECTION?
+  yes: retry_counter is 0?
+      no: reset timer, build new SYNC packet
+      yes: signal connectDone with error code
+return
+
+
+Later optional:
+Key whitelist
+Compile Key into binary
+Routing and Hierarchy
+SYNC acknowledgement
+optinal Finish sequence 
+
+
+
+
+
+
+
+
+
