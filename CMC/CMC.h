@@ -40,12 +40,17 @@
 
 /* the period between two calls to the timer process in milliseconds*/
 #ifndef CMC_PROCESS_TIME
-#define CMC_PROCESS_TIME 1000
+#define CMC_PROCESS_TIME 500
 #endif
 
 /* the number of retries, before the sockets gives up */
 #ifndef CMC_N_RETRIES
 #define CMC_N_RETRIES 3
+#endif
+
+/* the tim ebetween two retries*/
+#ifndef CMC_RETRY_TIME
+#define CMC_RETRY_TIME 2000
 #endif
 
 /* the maximum number of clients a server can have */

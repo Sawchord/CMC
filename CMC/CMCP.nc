@@ -27,6 +27,8 @@
 #include "TinyECC/ECC.h"
 #include "TinyECC/ECIES.h"
 
+#include "TinyECC/sha1.h"
+
 #include "crypto/crypto.h"
 
 /* the client only option hints the compiler 
@@ -63,8 +65,43 @@ module CMCP {
     N_SOCKS = uniqueCount("CMC_SOCKS"),
   };
   
+  message_t pkt;
+  
   /* holds all sockets to cmc servers in an array */
   cmc_server_sock_t socks[N_SOCKS];
+  
+  
+  /* --------- helpful functions ---------- */
+  
+  
+  /* sends out a sync message */
+  error_t send_sync(cmc_sock_t* sock, Point* pub_key) {
+    uint8_t packet_size;
+    cmc_hdr_t* packet_hdr;
+    cmc_sync_hdr_t* sync_hdr;
+    
+    // calculate the packet size
+    packet_size = sizeof(cmc_hdr_t) + sizeof(cmc_sync_hdr_t);
+    
+    // set up the packet
+    packet_hdr = (cmc_hdr_t*) packet(call Packet.getPayload(&pkt, packet_size))
+    sync_hdr = oacket_hdr + sizeof(cmc_hdr_t);
+    
+    // fill the packet with stuff
+    packet_hdr->src_id = sock->local_id;
+    packet_hdr->dst_id = destination;
+    packet_hdr->group_id = 0x0; // server id is unknown
+    
+    memcpy( &(packet_hdr->public_key), pub_key, sizeof(Point));
+    
+    DBG("sync packet assebled\n");
+    
+    return call AMSend.send(AM_BROADCAST_ADDR, &pkt, sizeof(BlinkToRadioMsg));
+    
+  }
+  
+  
+  
   
   /* --------- implemented events --------- */
   /* startup initialization */
@@ -96,6 +133,7 @@ module CMCP {
   event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len) {
     
   }
+  
   
   /* ---------- command implementations ---------- */
   command error_t CMC.init[uint8_t client](uint16_t local_id, 
@@ -130,6 +168,7 @@ module CMCP {
     sock->server_id = sock->local_id;
     sock->server_public_key = public_key;
     
+    DBG("setting socket to LISTEN and ESTABLISHED\n");
     sock->sync_state = CMC_LISTEN;
     sock->com_state = CMC_ESTABLISHED;
     
@@ -146,12 +185,35 @@ module CMCP {
     return SUCCESS;
   }
   
+  
+  
   command error_t CMC.connect[uint8_t client](uint16_t group_id,
     Point* remote_public_key) {
     
+    cmc_sock_t* sock = socks[client];
     
+    // check, that socket is in intial state
+    if (sock->sync_state != CMC_CLOSED || sock->com_state != CMC_CLOSED) {
+      DBG("error in connect, socket is not in initial state\n");
+      return FAIL;
+    }
+    
+    // set the socket values
+    sock->remote_public_key = remote_public_key;
+    sock->group_id = group_id;
+    
+    // prepare retry timer for resendeing SYNC, if this is lost
+    sock->retry_counter = 0;
+    sock->retry_timer = CMC_RETRY_TIME;
+    
+    DBG("setting socket to PRECONNECTION\n");
+    sock->state = CMC_PRECONNECTION;
+    
+    send_sync(sock, remote_public_key);
     
   }
+  
+  
   
   command error_t CMC.send[uint8_t client](uint16_t id, 
     void* data, uint16_t data_len) {
