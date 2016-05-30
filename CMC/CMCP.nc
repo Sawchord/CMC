@@ -76,27 +76,34 @@ module CMCP {
   
   /* sends out a sync message */
   error_t send_sync(cmc_sock_t* sock, Point* pub_key) {
+    
     uint8_t packet_size;
     cmc_hdr_t* packet_hdr;
     cmc_sync_hdr_t* sync_hdr;
+    
     
     // calculate the packet size
     packet_size = sizeof(cmc_hdr_t) + sizeof(cmc_sync_hdr_t);
     
     // set up the packet
     packet_hdr = (cmc_hdr_t*) packet(call Packet.getPayload(&pkt, packet_size))
-    sync_hdr = oacket_hdr + sizeof(cmc_hdr_t);
+    
+    // calculate the sunc_header pointer by offsetting
+    sync_hdr = packet_hdr + sizeof(cmc_hdr_t);
     
     // fill the packet with stuff
     packet_hdr->src_id = sock->local_id;
-    packet_hdr->dst_id = destination;
-    packet_hdr->group_id = 0x0; // server id is unknown
+    packet_hdr->dst_id = 0xff; // since the servers id is unknown of now
+    packet_hdr->group_id = sock->group_id;
     
-    memcpy( &(packet_hdr->public_key), pub_key, sizeof(Point));
     
-    DBG("sync packet assebled\n");
+    // fill in the public key of the server
+    //memcpy( &(sync_hdr->public_key), pub_key, sizeof(Point));
+    call ECC.point2octet(&(sync_hdr->public_key), CMC_POINT_SIZE, pub_key, FALSE);
     
-    return call AMSend.send(AM_BROADCAST_ADDR, &pkt, sizeof(BlinkToRadioMsg));
+    DBG("sync packet assembled\n");
+    
+    return call AMSend.send(AM_BROADCAST_ADDR, &pkt, packet_size);
     
   }
   
@@ -107,6 +114,8 @@ module CMCP {
   /* startup initialization */
   command error_t Init.init() {
     uint8_t i;
+    
+    ECC.init();
     
     for (i = 0; i < N_SOCKS; i++) {
       
@@ -126,20 +135,184 @@ module CMCP {
   }
   
   event void Timer.fired() {
+    cmc_sock_t* sock;
+    uint8_t i;
+    
+    
+    // update the retry_timer of all sockets
+    for (i = 0; i < N_SOCKS; i++) {
+      sock = &socks[i];
+      if ( (int32_t) sock->retry_timer - CMC_PROCESS_TIME) < 0) {
+        sock->retry_timer = 0;
+      }
+      else {
+        sock->retry_timer -= CMC_PROCESS_TIME;
+      }
+      
+      switch(sock->com_state) {
+        case CMC_PRECONNECTION:
+          
+          if (sock->retry_timer == 0) {
+            // if a timeout occurs
+            if (sock->retry_counter < CMC_N_RETRIES) {
+              
+              // resent sync message
+              sock->retry_counter++;
+              sock->retry_timer = CMC_RETRY_TIME;
+              send_sync(sock, &(sock->remote_public_key));
+              DBG("resending sync message\n");
+              return;
+              
+            }
+            else {
+              
+              // connection attempt failed
+              sock->state = CMC_CLOSED;
+              signal CMC[i].connected(FAIL);
+              DBG("a connection attempt has failed\n");
+              return;
+              
+            }
+          }
+          
+          break; /* CMC_PRECONNECTION */
+        
+        default:
+          DBG("unknown or unimplemented timeout event occured\n");
+          //return;
+      }
+      
+    }
     
   }
   
   
   event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len) {
     
+    cmc_hdr_t* packet = payload;
+    cmc_sock_t* sock = NULL;
+    uint8_t i;
+    
+    // search for the right socket
+    for (i = 0; i < N_SOCKS; i++) {
+      
+      if (sock[i].group_id == packet.group_id) {
+        sock = &socks[i];
+        DBG("found socket %d\n", i);
+        continue;
+      }      
+      
+    }
+    
+    // if socket was not found, continue
+    if (sock == NULL) {
+      DBG("recv msg, ignored, no socket found\n");
+      return msg;
+    }
+    
+    switch(packet.type) {
+      case CMC_SYNC:
+        if (IS_SERVER) {
+          // answer the sync packet with a key packet
+          DBG("receviced sync packet\n");
+          
+          // prepare pointers and metadata for the answer
+          uint8_t answer_size;
+          cmc_hdr_t* answer_hdr;
+          cmc_key_hdr_t* answer_key_hdr;
+          Point remote_public_key;
+          
+          
+          cmc_sync_hdr_t* sync_hdr = packet + sizeof(cmc_hdr_t);
+          
+          answer_size = sizeof(cmc_hdr_t) + sizeof(cmc_key_hdr_t);
+          
+          // decode the public key of the node, that wants to sync
+          call ECC.octet2point(&remote_public_key, &(sync_hdr->public_key),
+            CMC_POINT_SIZE);
+          
+          // assemble the answer packet
+          answer_hdr = (cmc_hdr_t*) packet(call Packet.getPayload(&pkt, answer_size));
+          answer_key_hdr = answer_hdr + sizeof(cmc_hdr_t);
+          
+          answer_hdr->src_id = sock->local_id;
+          answer_hdr->group_id = sock->group_id;
+          answer_hdr->dst_id = packet->src_id;
+          answer_hdr->type = CMC_KEY;
+          
+          // encrypt the masterkey with the ecc key from the sync message
+          call ECIES.encrypt(&(answer_key_hdr->encrypted_context), 
+            61+CMC_CC_SIZE, &(sock->masterkey), CMC_CC_SIZE, remote_public_key);
+          
+          call AMSend.send(AM_BROADCAST_ADDR, &pkt, answer_size);
+          
+          signal CMC.connected[i](SUCCESS);
+          
+          DBG("answered sync packet\n");
+          return msg;
+          
+          
+        }
+        else {
+          DBG("recv sync msg, but this is not server\n");
+          return msg;
+        }
+        
+        break; /* CMC_SYNC */
+      
+      
+      case CMC_KEY:
+        
+        cmc_key_hdr_t* key_hdr;
+        key_hdr = packet + sizeof(cmc_hdr_t);
+        
+        
+        if (IS_SERVER) {
+          DBG("recv key msg, but this is server\n");
+          return msg;
+        }
+        
+        if (sock->com_state != CMC_PRECONNECTION) {
+          DBG("recv key msgs, but client was not in CMC_PRECONNECTION\n");
+          return msg;
+        }
+        
+        // set the server id, which is now know
+        sock->server_id = packet->src_id;
+        
+        // decrypt and set the masterkey
+        call ECIES.decrypt(&(sock->master_key), CMC_CC_SIZE, 
+          &(key_hdr->encrypted_context), 61+CMC_CC_SIZE, &(sock->private_key));
+        
+        signal CMC.connected[i](SUCCESS);
+        
+        DBG("conection to server was succesfull\n");
+        
+        return msg;
+        
+        break; /* CMC_KEY */
+      
+      case CMC_ACK:
+        break;
+      
+      case CMC_DATA:
+        break;
+      
+      default:
+        DBG("header type %d was not recognized or implemented\n", packet.type);
+        return msg;
+    }
+    
+    
   }
+  
   
   
   /* ---------- command implementations ---------- */
   command error_t CMC.init[uint8_t client](uint16_t local_id, 
     NN_DIGIT* private_key, Point* public_key) {
     
-    cmc_sock_t* sock = socks[client];
+    cmc_sock_t* sock = &socks[client];
     
     sock->local_id = local_id;
     
@@ -151,9 +324,13 @@ module CMCP {
   
   command error_t CMC.bind[uint8_t client](uint16_t group_id) {
     
+    #ifdef CMC_CLIENT_ONLY
+    return FAIL;
+    #endif
+    
     uint8_t i;
     uint8_t key[16];
-    cmc_sock_t* sock = socks[client];
+    cmc_sock_t* sock = &socks[client];
     
     // check, that socket is in intial state
     if (sock->sync_state != CMC_CLOSED || sock->com_state != CMC_CLOSED) {
@@ -182,6 +359,8 @@ module CMCP {
             return FAIL;
     }
     
+    DBG("master key generated\n");
+    
     return SUCCESS;
   }
   
@@ -190,7 +369,7 @@ module CMCP {
   command error_t CMC.connect[uint8_t client](uint16_t group_id,
     Point* remote_public_key) {
     
-    cmc_sock_t* sock = socks[client];
+    cmc_sock_t* sock = &socks[client];
     
     // check, that socket is in intial state
     if (sock->sync_state != CMC_CLOSED || sock->com_state != CMC_CLOSED) {
@@ -202,7 +381,7 @@ module CMCP {
     sock->remote_public_key = remote_public_key;
     sock->group_id = group_id;
     
-    // prepare retry timer for resendeing SYNC, if this is lost
+    // prepare retry timer for resending SYNC, if this is lost
     sock->retry_counter = 0;
     sock->retry_timer = CMC_RETRY_TIME;
     

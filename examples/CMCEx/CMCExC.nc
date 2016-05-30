@@ -20,46 +20,35 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS."
  * 
  */
-
-
-configuration CMCC {
-  provides interface CMC[uint8_t client];
+configuration CMCServerExC {
+  
 } implementation {
   
-  components MainC;
-  components new TimerMilliC();
-  components RandomC;
+  components MainC, LedsC;
+  components CMCServerExP;
   
-  components CMCP;
+  CMCServerExP.Boot -> MainC;
+  CMCServerExP.Leds -> LedsC;
   
-  MainC -> CMCP.Init;
-  CMCP.Boot -> MainC;
+  components new TimerMilliC() as Timer;
+  CMCServerExP.Timer -> Timer;
   
-  CMCP.Timer -> TimerMilliC;
-  CMCP.Random -> RandomC;
+  components LocalTimeMilliC;
+  CMCServerExP.LocalTime -> LocalTimeMilliC;
   
-  /* radio components */
-  components new AMSenderC(AM_CMC);
-  components new AMReceiverC(AM_CMC);
-
-
-  CMCP.Packet -> AMSenderC;
-  CMCP.AMSend -> AMSenderC;
-  CMCP.Receive -> AMReceiverC;
+  components ActiveMessageC;
+  CMCServerExP.RadioControl -> ActiveMessageC;
   
+  components new CMCServerSocket() as Server0;
+  CMCServerExP.Server0 -> Server0;
   
-  CMC = CMCP;
+ 
+  components SerialStartC;
+  components PrintfC;
   
   // ECC components
   components ECCC,NNM, ECIESC;
-  CMCP.NN -> NNM;
-  CMCP.ECC -> ECCC;
-  CMCP.ECIES -> ECIESC;
-  
-  components CTRModeM;
-  components AES128M;
-  
-  CMCP.BlockCipher -> XTEAM;
-  //CMCP.BlockCipherInfo -> AES128M;
-  
+  CMCServerExP.NN -> NNM;
+  CMCServerExP.ECC -> ECCC;
+  CMCServerExP.ECIES -> ECIESC;
 }

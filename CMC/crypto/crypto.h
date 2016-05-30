@@ -41,7 +41,7 @@ typedef struct CipherContext {
 	// skipjack needs 32 * 4 = 128 bytes.
 	// aes128   needs 4 * 4 * 11 = 176 bytes
 	// xtea     needs 16 bytes
-	uint8_t context[176];
+	uint8_t context[16];
 } CipherContext;
 
 /**

@@ -32,6 +32,11 @@
 
 #include "crypto/crypto.h"
 
+// a public key in octet form is 42 byte in size for ECC160R1
+#define CMC_POINT_SIZE 42
+// the cipher context of a xtea is 16 bytes
+#define CMC_CC_SIZE 16
+
 /* the cannel for the MCMC network to operate on */
 #ifndef AM_CMC
 #define AM_CMC 8
@@ -87,7 +92,7 @@ typedef struct cmc_sock_t {
   uint16_t server_id;
   
   /* buffer, for message construction */
-  uint8_t last_msgs[CMC_MAX_MSG_LENGTH];
+  uint8_t last_msg[CMC_MAX_MSG_LENGTH];
   
   // TODO: need hash buffer or something?
   
@@ -141,7 +146,7 @@ typedef struct cmc_hdr_t {
 
 /* sync header */
 typedef struct cmc_sync_hdr_t {
-  Point public_key;
+  uint8_t public_key[CMC_POINT_SIZE];
 } cmc_sync_hdr_t;
 
 /* and error header */
@@ -151,7 +156,8 @@ typedef struct cmc_err_hdr_t {
 
 
 typedef struct cmc_key_hdr_t {
-  CipherContext context;
+  // and ECIES encrypted message is 61 byte longer than its cleantext
+  uint8_t encrypted_context[61 + CMC_CC_SIZE];
 } cmc_key_hdr_t;
 
 typedef struct cmc_data_hdr_t {
