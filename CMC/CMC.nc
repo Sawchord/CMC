@@ -27,7 +27,7 @@
 #include "TinyECC/ECC.h"
 #include "TinyECC/ECIES.h"
 
-interface CMCServer {
+interface CMC {
   
   /* intializes the socket, call before use */
   command error_t init(uint16_t local_id, NN_DIGIT* private_key, Point* public_key);

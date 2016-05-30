@@ -61,9 +61,14 @@ module CMCExP {
   uint8_t buffer[256];
   
   uint8_t next_node = 0;
+  bool sending = FALSE;
   
-  cmc_keypair_t client_key;
-  cmc_keypair_t server_key;
+  
+  NN_DIGIT client_priv_key[NUMWORDS];
+  NN_DIGIT server_priv_key[NUMWORDS];
+  
+  Point client_pub_key;
+  Point server_pub_key;
   
   event void Boot.booted() {
     oldtime = call LocalTime.get();
@@ -87,19 +92,29 @@ module CMCExP {
     
     oldtime = newtime;
     
-    call ECC.gen_private_key(client_key.priv);
-    call ECC.gen_private_key(server_key.priv);
+    call ECC.gen_private_key(client_priv_key);
+    call ECC.gen_private_key(server_priv_key);
+    call ECC.gen_public_key(&client_pub_key, client_priv_key);
+    call ECC.gen_public_key(&server_pub_key, server_priv_key);
     
-    call ECC.gen_public_key(&(client_key.pub), client_key.priv);
-    call ECC.gen_public_key(&(server_key.pub), server_key.priv);
+    if (TOS_NODE_ID == 1) {
+      call CMC0.init(TOS_NODE_ID, server_priv_key, &server_pub_key);
+    }
+    else {
+      call CMC0.init(TOS_NODE_ID, client_priv_key, &client_pub_key);
+    }
     
-    call CMC0.init(TOS_NODE_ID, &buffer, 1024, &server_key);
-    call CMC0.bind(1337);
+    if (TOS_NODE_ID == 1) {
+      call CMC0.bind(1337);
+    }
+    else {
+      call Timer.startPeriodic(5000);
+    }
     
     newtime = call LocalTime.get();
-    DBG("Client socket initialzed after %d ms\n", (newtime - oldtime));
+    DBG("Socket initialzed after %d ms\n", (newtime - oldtime));
     
-    call Timer.startPeriodic(2000);
+    
     
   }
   
@@ -107,22 +122,16 @@ module CMCExP {
   
   
   event void Timer.fired() {
-    if (!server_up && !server_starting) {
-      oldtime = call LocalTime.get();
-      DBG("Error while sending out me data\n");
-      
-      return;
-    }
-    
-    if(call CMC0.send(next_node, &next_node, 1) != SUCCESS) {
-      DBG("Could not send data to %d\n", next_node);
-    }
-    next_node++;
-    
+    DBG("attempt sync\n");
+    call CMC0.connect(1337, &server_pub_key);
   }
   
   
   event void CMC0.connected(error_t e) {
+    if (e == SUCCESS) {
+      call Timer.stop();
+      DBG("sync was successfull\n");
+    }
   }
   
   event void CMC0.sendDone(error_t e) {

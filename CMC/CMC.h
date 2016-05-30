@@ -108,6 +108,9 @@ typedef struct cmc_sock_t {
   
   // TODO: key whitelist to be compiled into code
   
+  uint8_t retry_counter;
+  uint16_t retry_timer;
+  
 } cmc_sock_t;
 
 
@@ -124,7 +127,7 @@ enum {
 
 
 /* cmc type flags */
-typedef enum {
+enum {
   CMC_SYNC = 0x0,
   CMC_ERR,
   CMC_KEY,

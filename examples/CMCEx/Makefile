@@ -41,7 +41,7 @@ CFLAGS+=-DSLIDING_WIN  #sliding window method, window size is defined in ECC.h
 ##ECDSA
 CFLAGS+=-DSHAMIR_TRICK  #shamir trick, windows size is defined in ECDSAM.nc
 
-
+# CFLAGS+=-DCMC_CLIENT_ONLY
 
 
 

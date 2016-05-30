@@ -68,7 +68,7 @@ module CMCP {
   message_t pkt;
   
   /* holds all sockets to cmc servers in an array */
-  cmc_server_sock_t socks[N_SOCKS];
+  cmc_sock_t socks[N_SOCKS];
   
   
   /* --------- helpful functions ---------- */
@@ -86,10 +86,10 @@ module CMCP {
     packet_size = sizeof(cmc_hdr_t) + sizeof(cmc_sync_hdr_t);
     
     // set up the packet
-    packet_hdr = (cmc_hdr_t*) packet(call Packet.getPayload(&pkt, packet_size))
+    packet_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, packet_size));
     
     // calculate the sunc_header pointer by offsetting
-    sync_hdr = packet_hdr + sizeof(cmc_hdr_t);
+    sync_hdr = (cmc_sync_hdr_t*) packet_hdr + sizeof(cmc_hdr_t);
     
     // fill the packet with stuff
     packet_hdr->src_id = sock->local_id;
@@ -115,13 +115,15 @@ module CMCP {
   command error_t Init.init() {
     uint8_t i;
     
-    ECC.init();
+    call ECC.init();
     
     for (i = 0; i < N_SOCKS; i++) {
       
       // set all sockets to closed
       socks[i].sync_state = CMC_CLOSED;
       socks[i].com_state = CMC_CLOSED;
+      socks[i].retry_counter = 0;
+      socks[i].retry_timer = 0;
     }
   }
   
@@ -142,7 +144,7 @@ module CMCP {
     // update the retry_timer of all sockets
     for (i = 0; i < N_SOCKS; i++) {
       sock = &socks[i];
-      if ( (int32_t) sock->retry_timer - CMC_PROCESS_TIME) < 0) {
+      if ( (int32_t) (sock->retry_timer - CMC_PROCESS_TIME) < 0) {
         sock->retry_timer = 0;
       }
       else {
@@ -159,7 +161,7 @@ module CMCP {
               // resent sync message
               sock->retry_counter++;
               sock->retry_timer = CMC_RETRY_TIME;
-              send_sync(sock, &(sock->remote_public_key));
+              send_sync(sock, &(sock->server_public_key));
               DBG("resending sync message\n");
               return;
               
@@ -167,8 +169,8 @@ module CMCP {
             else {
               
               // connection attempt failed
-              sock->state = CMC_CLOSED;
-              signal CMC[i].connected(FAIL);
+              sock->com_state = CMC_CLOSED;
+              signal CMC.connected[i](FAIL);
               DBG("a connection attempt has failed\n");
               return;
               
@@ -178,8 +180,8 @@ module CMCP {
           break; /* CMC_PRECONNECTION */
         
         default:
-          DBG("unknown or unimplemented timeout event occured\n");
-          //return;
+          //DBG("unknown or unimplemented timeout event occured\n");
+          return;
       }
       
     }
@@ -196,7 +198,7 @@ module CMCP {
     // search for the right socket
     for (i = 0; i < N_SOCKS; i++) {
       
-      if (sock[i].group_id == packet.group_id) {
+      if (socks[i].group_id == packet->group_id) {
         sock = &socks[i];
         DBG("found socket %d\n", i);
         continue;
@@ -210,30 +212,29 @@ module CMCP {
       return msg;
     }
     
-    switch(packet.type) {
+    switch(packet->type) {
       case CMC_SYNC:
         if (IS_SERVER) {
-          // answer the sync packet with a key packet
-          DBG("receviced sync packet\n");
-          
           // prepare pointers and metadata for the answer
           uint8_t answer_size;
           cmc_hdr_t* answer_hdr;
           cmc_key_hdr_t* answer_key_hdr;
           Point remote_public_key;
           
+          cmc_sync_hdr_t* sync_hdr = (cmc_sync_hdr_t*) packet + sizeof(cmc_hdr_t);
           
-          cmc_sync_hdr_t* sync_hdr = packet + sizeof(cmc_hdr_t);
+          // answer the sync packet with a key packet
+          DBG("receviced sync packet\n");
           
           answer_size = sizeof(cmc_hdr_t) + sizeof(cmc_key_hdr_t);
           
           // decode the public key of the node, that wants to sync
-          call ECC.octet2point(&remote_public_key, &(sync_hdr->public_key),
+          call ECC.octet2point(&remote_public_key, (sync_hdr->public_key),
             CMC_POINT_SIZE);
           
           // assemble the answer packet
-          answer_hdr = (cmc_hdr_t*) packet(call Packet.getPayload(&pkt, answer_size));
-          answer_key_hdr = answer_hdr + sizeof(cmc_hdr_t);
+          answer_hdr = (cmc_hdr_t*) (call Packet.getPayload(&pkt, answer_size));
+          answer_key_hdr = (cmc_key_hdr_t*) answer_hdr + sizeof(cmc_hdr_t);
           
           answer_hdr->src_id = sock->local_id;
           answer_hdr->group_id = sock->group_id;
@@ -241,8 +242,9 @@ module CMCP {
           answer_hdr->type = CMC_KEY;
           
           // encrypt the masterkey with the ecc key from the sync message
-          call ECIES.encrypt(&(answer_key_hdr->encrypted_context), 
-            61+CMC_CC_SIZE, &(sock->masterkey), CMC_CC_SIZE, remote_public_key);
+          call ECIES.encrypt((uint8_t*) &(answer_key_hdr->encrypted_context), 
+            61+CMC_CC_SIZE, (uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
+            &remote_public_key);
           
           call AMSend.send(AM_BROADCAST_ADDR, &pkt, answer_size);
           
@@ -263,10 +265,6 @@ module CMCP {
       
       case CMC_KEY:
         
-        cmc_key_hdr_t* key_hdr;
-        key_hdr = packet + sizeof(cmc_hdr_t);
-        
-        
         if (IS_SERVER) {
           DBG("recv key msg, but this is server\n");
           return msg;
@@ -276,20 +274,23 @@ module CMCP {
           DBG("recv key msgs, but client was not in CMC_PRECONNECTION\n");
           return msg;
         }
-        
-        // set the server id, which is now know
-        sock->server_id = packet->src_id;
-        
-        // decrypt and set the masterkey
-        call ECIES.decrypt(&(sock->master_key), CMC_CC_SIZE, 
-          &(key_hdr->encrypted_context), 61+CMC_CC_SIZE, &(sock->private_key));
-        
-        signal CMC.connected[i](SUCCESS);
-        
-        DBG("conection to server was succesfull\n");
-        
-        return msg;
-        
+        else {
+          cmc_key_hdr_t* key_hdr;
+          key_hdr = packet + sizeof(cmc_hdr_t);
+          
+          // set the server id, which is now know
+          sock->server_id = packet->src_id;
+          
+          // decrypt and set the masterkey
+          call ECIES.decrypt((uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
+            &(key_hdr->encrypted_context), 61+CMC_CC_SIZE, (sock->private_key));
+          
+          signal CMC.connected[i](SUCCESS);
+          
+          DBG("conection to server was succesfull\n");
+          
+          return msg;
+        }
         break; /* CMC_KEY */
       
       case CMC_ACK:
@@ -299,7 +300,7 @@ module CMCP {
         break;
       
       default:
-        DBG("header type %d was not recognized or implemented\n", packet.type);
+        DBG("header type %d was not recognized or implemented\n", packet->type);
         return msg;
     }
     
@@ -324,13 +325,13 @@ module CMCP {
   
   command error_t CMC.bind[uint8_t client](uint16_t group_id) {
     
-    #ifdef CMC_CLIENT_ONLY
-    return FAIL;
-    #endif
-    
     uint8_t i;
     uint8_t key[16];
     cmc_sock_t* sock = &socks[client];
+    
+    #ifdef CMC_CLIENT_ONLY
+    return FAIL;
+    #endif
     
     // check, that socket is in intial state
     if (sock->sync_state != CMC_CLOSED || sock->com_state != CMC_CLOSED) {
@@ -343,15 +344,15 @@ module CMCP {
     
     // set the client specific fields to self
     sock->server_id = sock->local_id;
-    sock->server_public_key = public_key;
+    sock->server_public_key = NULL;
     
     DBG("setting socket to LISTEN and ESTABLISHED\n");
     sock->sync_state = CMC_LISTEN;
     sock->com_state = CMC_ESTABLISHED;
     
     // generate Masterkey
-    for (i = 0; i < 16; i++) {
-      key[i] = call Random.rand8();
+    for (i = 0; i < 16; i+=2) {
+      key[i] = call Random.rand16();
     }
     
     if (call BlockCipher.init(&(sock->master_key), 16, 16, key) != SUCCESS) {
@@ -378,7 +379,7 @@ module CMCP {
     }
     
     // set the socket values
-    sock->remote_public_key = remote_public_key;
+    sock->server_public_key = remote_public_key;
     sock->group_id = group_id;
     
     // prepare retry timer for resending SYNC, if this is lost
@@ -386,7 +387,7 @@ module CMCP {
     sock->retry_timer = CMC_RETRY_TIME;
     
     DBG("setting socket to PRECONNECTION\n");
-    sock->state = CMC_PRECONNECTION;
+    sock->com_state = CMC_PRECONNECTION;
     
     send_sync(sock, remote_public_key);
     

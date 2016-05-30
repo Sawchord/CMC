@@ -20,27 +20,27 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS."
  * 
  */
-configuration CMCServerExC {
+configuration CMCExC {
   
 } implementation {
   
   components MainC, LedsC;
-  components CMCServerExP;
+  components CMCExP;
   
-  CMCServerExP.Boot -> MainC;
-  CMCServerExP.Leds -> LedsC;
+  CMCExP.Boot -> MainC;
+  CMCExP.Leds -> LedsC;
   
   components new TimerMilliC() as Timer;
-  CMCServerExP.Timer -> Timer;
+  CMCExP.Timer -> Timer;
   
   components LocalTimeMilliC;
-  CMCServerExP.LocalTime -> LocalTimeMilliC;
+  CMCExP.LocalTime -> LocalTimeMilliC;
   
   components ActiveMessageC;
-  CMCServerExP.RadioControl -> ActiveMessageC;
+  CMCExP.RadioControl -> ActiveMessageC;
   
-  components new CMCServerSocket() as Server0;
-  CMCServerExP.Server0 -> Server0;
+  components new CMCSocket() as CMC0;
+  CMCExP.CMC0 -> CMC0;
   
  
   components SerialStartC;
@@ -48,7 +48,7 @@ configuration CMCServerExC {
   
   // ECC components
   components ECCC,NNM, ECIESC;
-  CMCServerExP.NN -> NNM;
-  CMCServerExP.ECC -> ECCC;
-  CMCServerExP.ECIES -> ECIESC;
+  CMCExP.NN -> NNM;
+  CMCExP.ECC -> ECCC;
+  CMCExP.ECIES -> ECIESC;
 }

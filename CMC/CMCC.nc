@@ -57,7 +57,8 @@ configuration CMCC {
   CMCP.ECIES -> ECIESC;
   
   components CTRModeM;
-  components AES128M;
+  //components AES128M;
+  components XTEAM;
   
   CMCP.BlockCipher -> XTEAM;
   //CMCP.BlockCipherInfo -> AES128M;
