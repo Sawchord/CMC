@@ -81,29 +81,35 @@ module CMCP {
     cmc_hdr_t* packet_hdr;
     cmc_sync_hdr_t* sync_hdr;
     
-    
     // calculate the packet size
     packet_size = sizeof(cmc_hdr_t) + sizeof(cmc_sync_hdr_t);
+    DBG("packet_size = %d\n", packet_size);
     
     // set up the packet
     packet_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, packet_size));
+    DBG("packet_hdr = %p\n", packet_hdr);
     
     // calculate the sunc_header pointer by offsetting
     sync_hdr = (cmc_sync_hdr_t*) packet_hdr + sizeof(cmc_hdr_t);
+    DBG("sync_hdr = %p\n", sync_hdr);
+    
+    return SUCCESS;
     
     // fill the packet with stuff
     packet_hdr->src_id = sock->local_id;
     packet_hdr->dst_id = 0xff; // since the servers id is unknown of now
     packet_hdr->group_id = sock->group_id;
     
+    return SUCCESS;
     
     // fill in the public key of the server
-    //memcpy( &(sync_hdr->public_key), pub_key, sizeof(Point));
-    call ECC.point2octet(&(sync_hdr->public_key), CMC_POINT_SIZE, pub_key, FALSE);
+    call ECC.point2octet((uint8_t*) &(sync_hdr->public_key), 
+      CMC_POINT_SIZE, pub_key, FALSE);
     
     DBG("sync packet assembled\n");
     
-    return call AMSend.send(AM_BROADCAST_ADDR, &pkt, packet_size);
+    //return call AMSend.send(AM_BROADCAST_ADDR, &pkt, packet_size);
+    return SUCCESS;
     
   }
   
@@ -125,6 +131,8 @@ module CMCP {
       socks[i].retry_counter = 0;
       socks[i].retry_timer = 0;
     }
+    
+    return SUCCESS;
   }
   
   event void AMSend.sendDone(message_t* msg, error_t error) {
@@ -140,11 +148,12 @@ module CMCP {
     cmc_sock_t* sock;
     uint8_t i;
     
+    DBG("process timer tick @%d ms\n", CMC_PROCESS_TIME);
     
     // update the retry_timer of all sockets
     for (i = 0; i < N_SOCKS; i++) {
       sock = &socks[i];
-      if ( (int32_t) (sock->retry_timer - CMC_PROCESS_TIME) < 0) {
+      if (( (int32_t) sock->retry_timer - CMC_PROCESS_TIME) < 0) {
         sock->retry_timer = 0;
       }
       else {
@@ -161,7 +170,7 @@ module CMCP {
               // resent sync message
               sock->retry_counter++;
               sock->retry_timer = CMC_RETRY_TIME;
-              send_sync(sock, &(sock->server_public_key));
+              send_sync(sock, sock->server_public_key);
               DBG("resending sync message\n");
               return;
               
@@ -276,14 +285,14 @@ module CMCP {
         }
         else {
           cmc_key_hdr_t* key_hdr;
-          key_hdr = packet + sizeof(cmc_hdr_t);
+          key_hdr = (cmc_key_hdr_t*) packet + sizeof(cmc_hdr_t);
           
           // set the server id, which is now know
           sock->server_id = packet->src_id;
           
           // decrypt and set the masterkey
           call ECIES.decrypt((uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
-            &(key_hdr->encrypted_context), 61+CMC_CC_SIZE, (sock->private_key));
+            (key_hdr->encrypted_context), 61+CMC_CC_SIZE, (sock->private_key));
           
           signal CMC.connected[i](SUCCESS);
           
@@ -320,6 +329,8 @@ module CMCP {
     sock->private_key = private_key;
     sock->public_key = public_key;
     
+    return SUCCESS;
+    
   }
   
   
@@ -355,7 +366,7 @@ module CMCP {
       key[i] = call Random.rand16();
     }
     
-    if (call BlockCipher.init(&(sock->master_key), 16, 16, key) != SUCCESS) {
+    if (call BlockCipher.init( &(sock->master_key), 8, 16, key) != SUCCESS) {
             DBG("error while generating masterkey\n");
             return FAIL;
     }
@@ -389,7 +400,7 @@ module CMCP {
     DBG("setting socket to PRECONNECTION\n");
     sock->com_state = CMC_PRECONNECTION;
     
-    send_sync(sock, remote_public_key);
+    return send_sync(sock, remote_public_key);
     
   }
   

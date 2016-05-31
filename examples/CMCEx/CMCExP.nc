@@ -57,10 +57,6 @@ module CMCExP {
 } implementation {
   
   uint32_t oldtime, newtime;
-  
-  uint8_t buffer[256];
-  
-  uint8_t next_node = 0;
   bool sending = FALSE;
   
   
@@ -112,9 +108,7 @@ module CMCExP {
     }
     
     newtime = call LocalTime.get();
-    DBG("Socket initialzed after %d ms\n", (newtime - oldtime));
-    
-    
+    DBG("Socket initialized after %d ms\n", (newtime - oldtime));
     
   }
   
@@ -123,6 +117,7 @@ module CMCExP {
   
   event void Timer.fired() {
     DBG("attempt sync\n");
+    oldtime = call LocalTime.get();
     call CMC0.connect(1337, &server_pub_key);
   }
   
@@ -130,7 +125,8 @@ module CMCExP {
   event void CMC0.connected(error_t e) {
     if (e == SUCCESS) {
       call Timer.stop();
-      DBG("sync was successfull\n");
+      newtime = call LocalTime.get();
+      DBG("sync was successfull after %d ms\n", (newtime - oldtime));
     }
   }
   

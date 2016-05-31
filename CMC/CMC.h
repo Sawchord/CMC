@@ -137,34 +137,34 @@ enum {
 
 
 /* cmc header type */
-typedef struct cmc_hdr_t {
-  uint16_t src_id;
-  uint16_t group_id;
-  uint16_t dst_id;
-  uint8_t type;
+typedef nx_struct cmc_hdr_t {
+  nx_uint16_t src_id;
+  nx_uint16_t group_id;
+  nx_uint16_t dst_id;
+  nx_uint8_t type;
 } cmc_hdr_t;
 
 
 /* ---------cmc header expansions------------ */
 
 /* sync header */
-typedef struct cmc_sync_hdr_t {
-  uint8_t public_key[CMC_POINT_SIZE];
+typedef nx_struct cmc_sync_hdr_t {
+  nx_uint8_t public_key[CMC_POINT_SIZE];
 } cmc_sync_hdr_t;
 
 /* and error header */
-typedef struct cmc_err_hdr_t {
-  uint16_t message;
+typedef nx_struct cmc_err_hdr_t {
+  nx_uint16_t message;
 } cmc_ferr_hdr_t;
 
 
-typedef struct cmc_key_hdr_t {
+typedef nx_struct cmc_key_hdr_t {
   // and ECIES encrypted message is 61 byte longer than its cleantext
-  uint8_t encrypted_context[61 + CMC_CC_SIZE];
+  nx_uint8_t encrypted_context[61 + CMC_CC_SIZE];
 } cmc_key_hdr_t;
 
-typedef struct cmc_data_hdr_t {
-  uint16_t length;
+typedef nx_struct cmc_data_hdr_t {
+  nx_uint16_t length;
 } cmc_msg_hdr_t;
 
 // TODO: Ack header
