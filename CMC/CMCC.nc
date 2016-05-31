@@ -39,6 +39,8 @@ configuration CMCC {
   CMCP.Random -> RandomC;
   
   /* radio components */
+  components ActiveMessageC;
+  
   components new AMSenderC(AM_CMC);
   components new AMReceiverC(AM_CMC);
 

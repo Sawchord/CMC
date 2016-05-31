@@ -104,7 +104,7 @@ module CMCExP {
       call CMC0.bind(1337);
     }
     else {
-      call Timer.startPeriodic(5000);
+      call Timer.startOneShot(5000);
     }
     
     newtime = call LocalTime.get();
@@ -118,7 +118,9 @@ module CMCExP {
   event void Timer.fired() {
     DBG("attempt sync\n");
     oldtime = call LocalTime.get();
-    call CMC0.connect(1337, &server_pub_key);
+    if (call CMC0.connect(1337, &server_pub_key) != SUCCESS) {
+      DBG("send attempt failed\n");
+    }
   }
   
   

@@ -1,195 +1,167 @@
-This will later become the documentation of the packet.
-As of now, it is just a collection of stuff.
+States:
+CLOSED
+LISTEN
+ESTABLISHED
+ACKPENDING1
+ACKPENDING2
+PRECONNECTION
 
-The Header of a CMC packet consists of:
-16 bit source id
-16 bit destination id
-8 bit type flag:
+Socket fields
 
-Sync packet
-Finish packet
-Error packet
-Ack packet
-Challenge packet
-Response packet
-Data packet
+SYNC_STATE
+COM_STATE 
 
-The magic numbers corresponing to these types may vary during development and may be specified later.
+sync_retry_counter
+retry_counter
+retry_timer
+
+local_id
+group_id
+server_id
+
+last_packet
+
+public_key*
+private_key*
+
+server_public_key*
+
+master_key
 
 
-A flag indicates, that this packet may have an option field attached to it.
-The option fields are attached in the following order and size:
-SYNC
-FINISH
-ERR
-CHALLENGE
-RESPONSE
-KEY
-ACK
-DATA
+Events presented to the user:
+connectDone: 
+  Informs user, if connection was successfull, on Server also tells User the local_id
 
-Since the content of these field may change heavily, for content refer to CMC.h
+sendDone:
+  Inform user, if message was send succesfully, and that sending more stuff is now possible
 
-Here comes a description of the commands and event in pseudocode:
-NOTE: for better understanding, the actions are in the order, which makes 
-the most sense, not the safes one.
-A better order would be, to put message to the end of an action and only
-signaling behind that. 
-STATE changes should be done at beginning ????
 
-Server init:
-Set local_id, buf_len and keys set SYNC_STATE to CLOSED and MSGS_STATE to CLOSED, return
 
-Server bind:
-Does another socket have group_id?
-  yes: raise error
-  no: both STATES in CLOSED?
-    yes: raise error
-    no: set group_id, set SYNC_STATE to LISTEN and MSGS_STATE to ESTABLISHED, return
+Commands presented to user:
 
-Server close:
-TODO: needed and possible???
-
-Server shutdown:
-STATES in CLOSED?
-  yes: raise error
-  no: Send ferr packet with MCAST, set SYNC_STATE to CLOSED and MSGS_STATE to CLOSED, return
-
-Server send:
-MSGS_STATE in ESTABLISHED?
-  no: raise error
-  yes: hash message and encrypt message and hash, then send them, set MSGS_STATE to APCKPENDING and return
-
-Server receive:
-Is it a CHALLENGE or a KEY packet?
-  yes: drop packet and return
-Has any socket a matching group_id?
-  no: drop packet and return
-  yes: select that socket
-Is it a SYNC packet?
-  yes: Is SYNC_STATE in LISTEN:
-    no: drop packet and return
-    yes: Is nodes public key whitelisted?
-      yes: generate challenge and send challenge to node, 
-        set SYNC_RETRY and SYNC_TIMER, set SYNC_STATE to AUTH, then return
-      no: send ferr with not_in_whitelist then return
-Is it a RESPONSE packet?
-  yes: Is SYNC_STATE in AUTH:
-    no: drop packet and return
-    yes: Is response correct?
-      no: send err with incorrect_response, set SYNC_STATE to LISTEN and return
-      yes: encrypt and send masterkey, set SYNC_STATE to LISTEN 
-        signal user a connected and return
-Is it a DATA packet?
-  yes: is MSGS_STATE in ESTABLISHED?
-    no: drop packet and return
-    yes: Is MCAST set?
-      yes: decrypt and signal data to user, resent data, then return
-      no: Is destination_id your local_id?
-        yes: decrypt and signal data to user, then return
-        no: decrypt to update context, set hash,
-          send packet, set MSGS_STATE to ACKPENGING adn return
-Is it an ACK packet?
-  yes: Is MSGS_STATE in ACKPENDING?
-    no: drop packet and return
-    yes: Is hash correct?
-      no: send ferr with incorrect_checksum to dest and src, 
-        set MSGS_STATE to ESTABLISHED and return NEEDED???
-      yes: Is this node source?
-        no: send ACK to src, set MSGS_STATE to ESTABLISHED and return
-        yes: signal user sendDone, set MSGS_STATE to ESTABLISHED and return
-//Is it a FINISH packet?
-//  yes: MSGS_STATE in CLOSED?
-//    yes: drop packet and return
-//    no: signal user, that src has closed and return
-Is it an ERR packet?
-  yes: Error handling
-
-Server Timer:
-SYNC timer elapsed?
-  yes: SYNC_STATE in AUTH?
-    no: ignore and return
-    yes: SYNC_RETRY elapsed?
-      no: resend last Challenge
-      yes: set SYNC_STATE to LISTEN, signal user failed connection attempt and return
-MSGS timer elapsed?
-  yes: MSGS_STATE in ACKPENDING?
-    no: ignore
-    yes: MSGS_RETRY elapsed?
-      no: resent last message
-      yes: was this node sender?
-        yes: set SYNC_STATE to LISTEN, signal user failed sending and return
-        no: send failure to src of last messagem set SYNC_STATE to LISTEN and return
-      
-
-Client init:
-Set local_id, buf_len and keys, set SYN_STATE to CLOSED and MSGS_STATE to closed
-
-Client connect:
-Has another socket same group_id?
-  yes: raise error
-  no: send SYNC packet, set STATE to PRECONNECTION and return
-
-Client close:
-STATES in CLOSED:
-  yes: raise error
-  no: send FINISH packet to server, set both STATE to CLOSED and return
-
+Init [local_id, keys]:
+  Sets local_id and the pointers to private and public key
   
-Server send:
-MSGS_STATE in ESTABLISHED?
-  no: raise error
-  yes: hash message and encrypt message and hash, then send them, set MSGS_STATE to ACKPENDING and return
-  
-Client send:
-  STATE in ESTABLISHED?
-    no: raise error
-    yes: hash message, encrypt hash and message, send them, 
-      set STATE to ACKPENDING and return
 
-Client receive:
-Is it a SYNC or RESPONSE packet:
-  Yes: drop and return
-Has any socket a matching group_id?
-  no: ignore and return
-  yes: select that socket
-Is it a CHALLENGE?
-  Is STATE in PRECONNECTION:
-    no: drop packet and return
-    yes: solve the challenge, send it, set STATE to AUTH an return
+Bind [client][group_id]:
+Select socket to client
+Are both STATES in CLOSED?
+  no: error and return
+  yes: set SYNC_STATE to LISTEN and COM_STATE to ESTABLISHED
+       set group_id, generate masterkey, return
+  
+Connect [client][group_id, server_public_key]:
+Select socket to client
+Are both STATES in CLOSED?
+  no: error and return
+  yes: set COM_STATE to PRECONNECTION, set group_id, set server_public_key
+       set retry_counter to 0, retry_timer, send SYNC packet, return
+
+Send [client][destination, payload, plen]:
+Select socket of client
+Is COM_STATE in ESTABLISHED?
+  no: error and return
+Payload smaller than MAX_PAYLOAD
+  no: error and return
+Hash message, encrypt message and hash, fill in length field save and send
+Was MCAST (address ffff)?
+  no: Is Server?
+      no: set COM_STATE to ACKPENDING1 and return
+      yes: set COM_STATE to ACKPENDING2 and return
+    
+return
+
+Close:
+set COM_STATE to closed and return
+
+Events to implement:
+Init:
+  Sets all STATES to CLOSED and return
+
+
+Receive:
+Any socket has matching group_id?
+  no: return
+Select that socket
+Is it a SYNC packet:
+  yes: Is this Server?:
+         no: return
+      encrypt masterkey with the ecc public key, 
+      assemble KEY message containing master_key
+      send message
+return
 Is it a KEY packet?
-  STATE in PRECONNECTION or AUTH?
-    no: ignore and return
-    yes: decrypt and set master key, set STATE to ESTABLISHED, 
-      signal connect done and return
+  yes: Is Server?
+    yes: return
+          Is COM_STATE in PRECONNECTION?
+            no: return
+            yes: set the packets src as server_id, the key as masterkey
+                 change COM_STATE to ESTABLISHED
+                 signal connectDone successfull to the user and return
 Is it a DATA packet?
-  STATE in ESTABLISHED?
-    yes: Is it MCAST?
-      yes: decrypt, signal data to user and return?
-      no: This node is destionation?
-        no: Decrypt and return
-        yes: Decrypt, signal data to user, hash decrypted message, 
-          send ACK, set STATE to ACKPENGING and return
-  STATE in ACKPENDING?
-    yes: Same message as last message send?
-      no: signal error and return
-      yes:
+  yes: Is COM_STATE in ESTABLISHED?
+       Decrypt the message, this updates the CipherContex
+       Is this Server?
+         yes: Resend the message set COM_STATE to ACKPENDING2
+       Is this Node the destination?
+         yes: Signal User the message, send out ACK and return
+         no: Is this Server?
+          yes: r
+       Is this MCAST?
+          yes: Signal User message and return
+      
+  Is COM_STATE in ACKPENDING1?  
+    yes: Is Server?
+      return
+    no: compare last_message with recv msgs?
+  Is COM_STATE i ACKPENDING2?
+    yes:
+  
     
 Is it an ACK packet?
-  STATE in ACKPENDING?
-    no: ignore and return
-    yes: Is hash correct?
-      no: send error with incorrect_checksum to src and dst, then return
-      yes: signal user sendDone, set STATE to ESTABLISHED and return
-//is it a FINNISH packet?
-//  yes: STATE in CLOSED:
-//    yes: ignore
-//    no: set STATE to and closed, signal user and return
-Is it and ERR packet?
-  yes: error handling
+  yes:TODO
   
-Client Timer:
+Timer:
+Timer is already 0?
+  yes: return
+Update timer
 Timer elapsed?
-  yes: 
+  no: return
+  yes: decrease retry_counter
+COM_STATE in ACKPENDING1:
+  yes: Is server?
+        no: return (should never happen)
+        yes: retry_counter is 0?
+             no: reset retry_timer, resent saved Packet
+             yes: signal sendDone with error code, set COM_STATE to ESTABLISHED
+COM_STATE in ACKPENDING2?
+    yes: retry_counter is 0?
+         yes: set COM_STATE to ESTABLISHED
+         Last signal was addressed to this Node?
+           yes: signal user sendDone with error code and return
+           no: Is Server?
+              yes: reset retry_timer , resend message and return
+              no: reset retry_timer and return
+COM_STATE in PRECONNECTION?
+  yes: retry_counter is 0?
+      no: reset timer, build new SYNC packet
+      yes: signal connectDone with error code
+return
+
+
+Later optional:
+Key whitelist
+Compile Key into binary
+Routing and Hierarchy
+SYNC acknowledgement
+optinal Finish sequence 
+
+
+
+
+
+
+
 
 

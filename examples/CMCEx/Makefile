@@ -43,7 +43,7 @@ CFLAGS+=-DSHAMIR_TRICK  #shamir trick, windows size is defined in ECDSAM.nc
 
 # CFLAGS+=-DCMC_CLIENT_ONLY
 
-
+CFLAGS += -DTOSH_DATA_LENGTH=100
 
 # Include the CMC folder
 CFLAGS += -I../../CMC

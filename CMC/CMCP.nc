@@ -83,24 +83,22 @@ module CMCP {
     
     // calculate the packet size
     packet_size = sizeof(cmc_hdr_t) + sizeof(cmc_sync_hdr_t);
-    DBG("packet_size = %d\n", packet_size);
+    //DBG("packet_size = %d\n", packet_size);
+    //DBG("cmc_hdr_t size = %d\n", sizeof(cmc_hdr_t));
     
     // set up the packet
-    packet_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, packet_size));
-    DBG("packet_hdr = %p\n", packet_hdr);
+    packet_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, 29));
+    //DBG("packet_hdr = %p\n", packet_hdr);
     
     // calculate the sunc_header pointer by offsetting
-    sync_hdr = (cmc_sync_hdr_t*) packet_hdr + sizeof(cmc_hdr_t);
-    DBG("sync_hdr = %p\n", sync_hdr);
-    
-    return SUCCESS;
+    sync_hdr = (cmc_sync_hdr_t*) ( (void*) packet_hdr + sizeof(cmc_hdr_t));
+    //DBG("sync_hdr = %p\n", sync_hdr);
     
     // fill the packet with stuff
     packet_hdr->src_id = sock->local_id;
     packet_hdr->dst_id = 0xff; // since the servers id is unknown of now
     packet_hdr->group_id = sock->group_id;
     
-    return SUCCESS;
     
     // fill in the public key of the server
     call ECC.point2octet((uint8_t*) &(sync_hdr->public_key), 
@@ -108,8 +106,7 @@ module CMCP {
     
     DBG("sync packet assembled\n");
     
-    //return call AMSend.send(AM_BROADCAST_ADDR, &pkt, packet_size);
-    return SUCCESS;
+    return call AMSend.send(AM_BROADCAST_ADDR, &pkt, packet_size);
     
   }
   
@@ -148,7 +145,7 @@ module CMCP {
     cmc_sock_t* sock;
     uint8_t i;
     
-    DBG("process timer tick @%d ms\n", CMC_PROCESS_TIME);
+    //DBG("process timer tick @%d ms\n", CMC_PROCESS_TIME);
     
     // update the retry_timer of all sockets
     for (i = 0; i < N_SOCKS; i++) {
@@ -230,7 +227,8 @@ module CMCP {
           cmc_key_hdr_t* answer_key_hdr;
           Point remote_public_key;
           
-          cmc_sync_hdr_t* sync_hdr = (cmc_sync_hdr_t*) packet + sizeof(cmc_hdr_t);
+          cmc_sync_hdr_t* sync_hdr = (cmc_sync_hdr_t*) 
+            ( (void*) packet + sizeof(cmc_hdr_t) );
           
           // answer the sync packet with a key packet
           DBG("receviced sync packet\n");
@@ -243,7 +241,8 @@ module CMCP {
           
           // assemble the answer packet
           answer_hdr = (cmc_hdr_t*) (call Packet.getPayload(&pkt, answer_size));
-          answer_key_hdr = (cmc_key_hdr_t*) answer_hdr + sizeof(cmc_hdr_t);
+          answer_key_hdr = (cmc_key_hdr_t*) 
+            ( (void*) answer_hdr + sizeof(cmc_hdr_t) );
           
           answer_hdr->src_id = sock->local_id;
           answer_hdr->group_id = sock->group_id;
@@ -297,6 +296,7 @@ module CMCP {
           signal CMC.connected[i](SUCCESS);
           
           DBG("conection to server was succesfull\n");
+          sock->com_state = CMC_ESTABLISHED;
           
           return msg;
         }

@@ -45,7 +45,7 @@
 
 /* the period between two calls to the timer process in milliseconds*/
 #ifndef CMC_PROCESS_TIME
-#define CMC_PROCESS_TIME 500
+#define CMC_PROCESS_TIME 2000
 #endif
 
 /* the number of retries, before the sockets gives up */
@@ -55,7 +55,7 @@
 
 /* the tim ebetween two retries*/
 #ifndef CMC_RETRY_TIME
-#define CMC_RETRY_TIME 2000
+#define CMC_RETRY_TIME 8000
 #endif
 
 /* the maximum number of clients a server can have */
@@ -146,6 +146,11 @@ typedef nx_struct cmc_hdr_t {
 
 
 /* ---------cmc header expansions------------ */
+/* message header */
+typedef nx_struct cmc_message_t {
+  nx_uint8_t body[CMC_MAX_MSG_LENGTH];
+} cmc_message_t;
+
 
 /* sync header */
 typedef nx_struct cmc_sync_hdr_t {
