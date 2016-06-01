@@ -29,7 +29,7 @@
 
 includes ECIES;
 
-#define POINT_COMPRESS
+//#define POINT_COMPRESS
 
 
 module ECIESM {
@@ -317,7 +317,7 @@ implementation {
 
     for (i=0; i<HMAC_LEN; i++){
       if (hmac_tmp[i] != C[octet_len + M_len + i])
-	return -2;
+        return -2;
     }
     
     //8. decrypt

@@ -222,6 +222,7 @@ module CMCP {
         if (IS_SERVER) {
           
           // prepare pointers and metadata for the answer
+          uint8_t crypt_err;
           uint8_t answer_size;
           cmc_hdr_t* answer_hdr;
           cmc_key_hdr_t* answer_key_hdr;
@@ -231,8 +232,8 @@ module CMCP {
             ( (void*) packet + sizeof(cmc_hdr_t) );
           
           // answer the sync packet with a key packet
-          DBG("receviced sync packet:");
-          print_hex((uint8_t*) &(sync_hdr->public_key), 42);
+          //DBG("receviced sync packet:");
+          //print_hex((uint8_t*) &(sync_hdr->public_key), 42);
           
           
           answer_size = sizeof(cmc_hdr_t) + sizeof(cmc_key_hdr_t);
@@ -252,30 +253,38 @@ module CMCP {
           answer_hdr->type = CMC_KEY;
           
           // encrypt the masterkey with the ecc key from the sync message
-          call ECIES.encrypt((uint8_t*) answer_key_hdr, 
+          crypt_err = call ECIES.encrypt((uint8_t*) answer_key_hdr, 
             61+CMC_CC_SIZE, (uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
             &remote_public_key);
           
           // --- debug -- delete later
+          /*DBG("encryption: %d\n", crypt_err);
+          //DBG("packet=%p  sync_hdr=%p, answer_hdr=%p, answer_key_hdr=%p\n",
+            //packet, sync_hdr, answer_hdr, answer_key_hdr);
+          
           DBG("remote pub key:");
           print_hex((uint8_t*) &remote_public_key, 42);
           
+          DBG("encrypted context looks like:");
+          print_hex((uint8_t*) answer_key_hdr, 61+CMC_CC_SIZE);
+          
           memset( &(sock->master_key), 0,  16);
           
-          call ECIES.decrypt((uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
+          crypt_err = call ECIES.decrypt((uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
             (uint8_t*) answer_key_hdr, 61+CMC_CC_SIZE, (sock->private_key));
           
-          DBG("encrypt decrypt loop gives you:");
+          DBG("decryption: %d\n", crypt_err);
+          DBG("encrypt decrypt loop:");
           print_hex((uint8_t*) &(sock->master_key), 16);
-          
+          */
           // -- end of debug -- delete later
           
           call AMSend.send(AM_BROADCAST_ADDR, &pkt, answer_size);
           
           signal CMC.connected[i](SUCCESS);
           
-          DBG("answered sync packet:");
-          print_hex((uint8_t*) answer_key_hdr, 61+CMC_CC_SIZE);
+          //DBG("answered sync packet:");
+          //print_hex((uint8_t*) answer_key_hdr, 61+CMC_CC_SIZE);
           
           return msg;
           
@@ -301,24 +310,27 @@ module CMCP {
           return msg;
         }
         else {
+          uint8_t crypt_err;
           cmc_key_hdr_t* key_hdr;
           key_hdr = (cmc_key_hdr_t*) ( (void*) packet + sizeof(cmc_hdr_t) );
           
           // set the server id, which is now know
           sock->server_id = packet->src_id;
           
-          DBG("The encrypted context is:");
-          print_hex((uint8_t*) (key_hdr->encrypted_context), 61+CMC_CC_SIZE);
+          //DBG("The encrypted context is:");
+          //print_hex((uint8_t*) (key_hdr->encrypted_context), 61+CMC_CC_SIZE);
           
           // decrypt and set the masterkey
-          call ECIES.decrypt((uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
+          crypt_err = call ECIES.decrypt((uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
             (uint8_t*) key_hdr, 61+CMC_CC_SIZE, (sock->private_key));
           
+          //DBG("decryption: %d\n", crypt_err);
           signal CMC.connected[i](SUCCESS);
           
           DBG("server connect success, got masterkey:");
           print_hex((uint8_t*) &(sock->master_key), 16);
           
+          DBG("setting COM_STATE to CONNECTED\n");
           sock->com_state = CMC_ESTABLISHED;
           
           return msg;

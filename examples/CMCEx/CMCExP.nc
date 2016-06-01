@@ -98,7 +98,7 @@ module CMCExP {
     call ECC.gen_public_key(&client_pub_key, client_priv_key);
     call ECC.gen_public_key(&server_pub_key, server_priv_key);
     
-    
+    /*
     DBG("client priv key:");
     print_hex((uint8_t*)client_priv_key, NUMWORDS);
     DBG("client pub key:");
@@ -107,6 +107,7 @@ module CMCExP {
     print_hex((uint8_t*)server_priv_key, NUMWORDS);
     DBG("server pub key:");
     print_hex((uint8_t*)&server_pub_key, 42);
+    */
     
     if (TOS_NODE_ID == 1) {
       call CMC0.init(TOS_NODE_ID, server_priv_key, &server_pub_key);
