@@ -113,7 +113,15 @@ typedef struct cmc_sock_t {
   
 } cmc_sock_t;
 
-
+void print_hex (uint8_t* data, uint16_t length) {
+  int i = 0;
+  
+  for (i = 0; i < length; i++) {
+    if (i % 8 == 0) DBG("\n");
+    DBG("0x%02x ", data[i]);
+  }
+  DBG("\n");
+}
 
 /* cmc socket states (for both server and client)*/
 enum {

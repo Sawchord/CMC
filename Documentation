@@ -102,25 +102,41 @@ Is it a KEY packet?
 Is it a DATA packet?
   yes: Is COM_STATE in ESTABLISHED?
        Decrypt the message, this updates the CipherContex
+       Is this MCAST?
+          yes: Signal User message
+          Is this Server?
+            yes: resend message and return
+            no: return
        Is this Server?
          yes: Resend the message set COM_STATE to ACKPENDING2
        Is this Node the destination?
-         yes: Signal User the message, send out ACK and return
+         yes: Signal User the message, send out ACK
          no: Is this Server?
-          yes: r
-       Is this MCAST?
-          yes: Signal User message and return
-      
+          yes: set COM_STATE back to ESTABLISHED
+        return
   Is COM_STATE in ACKPENDING1?  
     yes: Is Server?
-      return
-    no: compare last_message with recv msgs?
-  Is COM_STATE i ACKPENDING2?
-    yes:
+      return // should never happen
+    no: Data equals last message?
+      no: return
+      yes: Was your server the destination?
+        yes: set COM_STATE to ESTABLISHED
+        no: set COM_STATE to ACKPENDING2
+      
+  Is COM_STATE in ACKPENDING2?
+    yes: return
   
     
 Is it an ACK packet?
-  yes:TODO
+  yes:
+    COM_STATE in ACKPENDING2?
+      yes: Compare hash to hash of last message
+        correct?
+          yes: set COM_STATE to ESTABLISHED
+          Is this server?
+            yes: Resent ACK
+          Are you the sender of the message?
+            yes: Signal sendDone(SUCCESS) to User
   
 Timer:
 Timer is already 0?

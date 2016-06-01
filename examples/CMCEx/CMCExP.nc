@@ -26,6 +26,8 @@
 #include <ECIES.h>
 #include <sha1.h>
 
+#include <CMC.h>
+
 /* debug output */
 #ifdef DEBUG_OUT
 #include <printf.h>
@@ -69,6 +71,9 @@ module CMCExP {
   event void Boot.booted() {
     oldtime = call LocalTime.get();
     // start the radio
+    // FIXME: is this ok to be here?
+    call ECC.init();
+    
     call RadioControl.start();
     
   }
@@ -92,6 +97,16 @@ module CMCExP {
     call ECC.gen_private_key(server_priv_key);
     call ECC.gen_public_key(&client_pub_key, client_priv_key);
     call ECC.gen_public_key(&server_pub_key, server_priv_key);
+    
+    
+    DBG("client priv key:");
+    print_hex((uint8_t*)client_priv_key, NUMWORDS);
+    DBG("client pub key:");
+    print_hex((uint8_t*)&client_pub_key, 42);
+    DBG("server priv key:");
+    print_hex((uint8_t*)server_priv_key, NUMWORDS);
+    DBG("server pub key:");
+    print_hex((uint8_t*)&server_pub_key, 42);
     
     if (TOS_NODE_ID == 1) {
       call CMC0.init(TOS_NODE_ID, server_priv_key, &server_pub_key);

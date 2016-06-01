@@ -83,16 +83,12 @@ module CMCP {
     
     // calculate the packet size
     packet_size = sizeof(cmc_hdr_t) + sizeof(cmc_sync_hdr_t);
-    //DBG("packet_size = %d\n", packet_size);
-    //DBG("cmc_hdr_t size = %d\n", sizeof(cmc_hdr_t));
     
     // set up the packet
     packet_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, 29));
-    //DBG("packet_hdr = %p\n", packet_hdr);
     
     // calculate the sunc_header pointer by offsetting
     sync_hdr = (cmc_sync_hdr_t*) ( (void*) packet_hdr + sizeof(cmc_hdr_t));
-    //DBG("sync_hdr = %p\n", sync_hdr);
     
     // fill the packet with stuff
     packet_hdr->src_id = sock->local_id;
@@ -104,7 +100,10 @@ module CMCP {
     call ECC.point2octet((uint8_t*) &(sync_hdr->public_key), 
       CMC_POINT_SIZE, pub_key, FALSE);
     
-    DBG("sync packet assembled\n");
+    //DBG("sync packet assembled:");
+    //print_hex((uint8_t*) &(sync_hdr->public_key), 42);
+    //DBG("out of pub_key");
+    //print_hex((uint8_t*) pub_key, 42);
     
     return call AMSend.send(AM_BROADCAST_ADDR, &pkt, packet_size);
     
@@ -118,7 +117,7 @@ module CMCP {
   command error_t Init.init() {
     uint8_t i;
     
-    call ECC.init();
+    //call ECC.init();
     
     for (i = 0; i < N_SOCKS; i++) {
       
@@ -206,7 +205,7 @@ module CMCP {
       
       if (socks[i].group_id == packet->group_id) {
         sock = &socks[i];
-        DBG("found socket %d\n", i);
+        //DBG("found socket %d\n", i);
         continue;
       }      
       
@@ -221,6 +220,7 @@ module CMCP {
     switch(packet->type) {
       case CMC_SYNC:
         if (IS_SERVER) {
+          
           // prepare pointers and metadata for the answer
           uint8_t answer_size;
           cmc_hdr_t* answer_hdr;
@@ -231,12 +231,14 @@ module CMCP {
             ( (void*) packet + sizeof(cmc_hdr_t) );
           
           // answer the sync packet with a key packet
-          DBG("receviced sync packet\n");
+          DBG("receviced sync packet:");
+          print_hex((uint8_t*) &(sync_hdr->public_key), 42);
+          
           
           answer_size = sizeof(cmc_hdr_t) + sizeof(cmc_key_hdr_t);
           
           // decode the public key of the node, that wants to sync
-          call ECC.octet2point(&remote_public_key, (sync_hdr->public_key),
+          call ECC.octet2point(&remote_public_key, (uint8_t*) sync_hdr,
             CMC_POINT_SIZE);
           
           // assemble the answer packet
@@ -250,15 +252,31 @@ module CMCP {
           answer_hdr->type = CMC_KEY;
           
           // encrypt the masterkey with the ecc key from the sync message
-          call ECIES.encrypt((uint8_t*) &(answer_key_hdr->encrypted_context), 
+          call ECIES.encrypt((uint8_t*) answer_key_hdr, 
             61+CMC_CC_SIZE, (uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
             &remote_public_key);
+          
+          // --- debug -- delete later
+          DBG("remote pub key:");
+          print_hex((uint8_t*) &remote_public_key, 42);
+          
+          memset( &(sock->master_key), 0,  16);
+          
+          call ECIES.decrypt((uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
+            (uint8_t*) answer_key_hdr, 61+CMC_CC_SIZE, (sock->private_key));
+          
+          DBG("encrypt decrypt loop gives you:");
+          print_hex((uint8_t*) &(sock->master_key), 16);
+          
+          // -- end of debug -- delete later
           
           call AMSend.send(AM_BROADCAST_ADDR, &pkt, answer_size);
           
           signal CMC.connected[i](SUCCESS);
           
-          DBG("answered sync packet\n");
+          DBG("answered sync packet:");
+          print_hex((uint8_t*) answer_key_hdr, 61+CMC_CC_SIZE);
+          
           return msg;
           
           
@@ -284,29 +302,34 @@ module CMCP {
         }
         else {
           cmc_key_hdr_t* key_hdr;
-          key_hdr = (cmc_key_hdr_t*) packet + sizeof(cmc_hdr_t);
+          key_hdr = (cmc_key_hdr_t*) ( (void*) packet + sizeof(cmc_hdr_t) );
           
           // set the server id, which is now know
           sock->server_id = packet->src_id;
           
+          DBG("The encrypted context is:");
+          print_hex((uint8_t*) (key_hdr->encrypted_context), 61+CMC_CC_SIZE);
+          
           // decrypt and set the masterkey
           call ECIES.decrypt((uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
-            (key_hdr->encrypted_context), 61+CMC_CC_SIZE, (sock->private_key));
+            (uint8_t*) key_hdr, 61+CMC_CC_SIZE, (sock->private_key));
           
           signal CMC.connected[i](SUCCESS);
           
-          DBG("conection to server was succesfull\n");
+          DBG("server connect success, got masterkey:");
+          print_hex((uint8_t*) &(sock->master_key), 16);
+          
           sock->com_state = CMC_ESTABLISHED;
           
           return msg;
         }
         break; /* CMC_KEY */
       
+      case CMC_DATA: /* CMC_DATA */
+        break;
+        
       case CMC_ACK:
-        break;
-      
-      case CMC_DATA:
-        break;
+        break; /* CMC_ACK */
       
       default:
         DBG("header type %d was not recognized or implemented\n", packet->type);
@@ -362,7 +385,7 @@ module CMCP {
     sock->com_state = CMC_ESTABLISHED;
     
     // generate Masterkey
-    for (i = 0; i < 16; i+=2) {
+    for (i = 0; i < 16; i++) {
       key[i] = call Random.rand16();
     }
     
@@ -371,7 +394,8 @@ module CMCP {
             return FAIL;
     }
     
-    DBG("master key generated\n");
+    DBG("master key generated:");
+    print_hex((uint8_t*)&(sock->master_key), 16);
     
     return SUCCESS;
   }
@@ -400,7 +424,7 @@ module CMCP {
     DBG("setting socket to PRECONNECTION\n");
     sock->com_state = CMC_PRECONNECTION;
     
-    return send_sync(sock, remote_public_key);
+    return send_sync(sock, (sock->public_key));
     
   }
   
