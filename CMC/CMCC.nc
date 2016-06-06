@@ -65,4 +65,8 @@ configuration CMCC {
   CMCP.BlockCipher -> XTEAM;
   //CMCP.BlockCipherInfo -> AES128M;
   
+  
+  components SHA1M;
+  CMCP.SHA1 -> SHA1M.SHA1;
+  
 }

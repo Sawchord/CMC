@@ -55,12 +55,14 @@ module CMCExP {
     interface ECC;
     interface ECIES;
     
+    interface SHA1;
   }
 } implementation {
   
   uint32_t oldtime, newtime;
   bool sending = FALSE;
   
+  char teststr[] = "aabb";
   
   NN_DIGIT client_priv_key[NUMWORDS];
   NN_DIGIT server_priv_key[NUMWORDS];
@@ -78,7 +80,16 @@ module CMCExP {
     
   }
   
+  void sha1_hash(void* output, void* input, uint16_t input_len) {
+    SHA1Context ctx;
+    call SHA1.reset(&ctx);
+    call SHA1.update(&ctx, input, input_len);
+    call SHA1.digest(&ctx, output);
+  }
+  
   event void RadioControl.startDone(error_t e) {
+    
+    char hash_output[20];
     
     if (e != SUCCESS) {
       DBG("error starting radio... retry\n");
@@ -88,6 +99,11 @@ module CMCExP {
     
     newtime = call LocalTime.get();
     DBG("Radio is up after %d ms\n", (newtime - oldtime));
+    oldtime = newtime;
+    sha1_hash(&hash_output, &teststr, 4);
+    newtime = call LocalTime.get();
+    DBG("hashtest took %d ms and result:", (newtime - oldtime));
+    print_hex(&hash_output, 20);
     
     // after the radio is up, initialze the local key, which is needed for the Client init
     

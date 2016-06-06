@@ -58,6 +58,8 @@ module CMCP {
     interface ECC;
     interface ECIES;
     
+    interface SHA1;
+    
   }
 } implementation {
   
@@ -85,7 +87,7 @@ module CMCP {
     packet_size = sizeof(cmc_hdr_t) + sizeof(cmc_sync_hdr_t);
     
     // set up the packet
-    packet_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, 29));
+    packet_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, packet_size));
     
     // calculate the sunc_header pointer by offsetting
     sync_hdr = (cmc_sync_hdr_t*) ( (void*) packet_hdr + sizeof(cmc_hdr_t));
@@ -109,6 +111,94 @@ module CMCP {
     
   }
   
+  /* simple sha1 hash of a message */
+  error_t sha1_hash(void* output, void* input, uint16_t input_len) {
+    SHA1Context ctx;
+    error_t e;
+    e = call SHA1.reset(&ctx);
+    e = call SHA1.update(&ctx, input, input_len);
+    e = call SHA1.digest(&ctx, output);
+    return e;
+  }
+  
+  error_t send_data(uint8_t client, uint16_t dst_id,
+    void* data, uint16_t data_len) {
+    
+    cmc_hdr_t* message_hdr;
+    cmc_data_hdr_t* data_header;
+    
+    // the messages body needs to be constructed before it can be encrypted
+    // this requires two memcopys ... should be retweaked in the future
+    cmc_enc_data_hdr_t clear_data;
+    
+    uint8_t message_size;
+    uint8_t payload_size;
+    uint8_t pad_bytes;
+    uint16_t i;
+    cmc_sock_t* sock = &socks[client];
+    
+    pad_bytes = data_len % CMC_CC_BLOCKSIZE;
+    
+    // check for the right conditions to send
+    if (sock->com_state != CMC_ESTABLISHED) {
+      DBG("socket not in condition to send\n");
+      return FAIL;
+    }
+    if (data_len + pad_bytes > CMC_DATAFIELD_SIZE) {
+      DBG("data too long\n");
+      return FAIL;
+    }
+    
+    // build the data packet
+    clear_data.group_id = sock->group_id;
+    memcpy(&(clear_data.data), data, data_len);
+    // fill the rest with padbytes
+    memset((void*) &(clear_data.data) + data_len, 0, pad_bytes);
+    if (sha1_hash(&(clear_data.hash), &(clear_data.data), 
+      data_len + pad_bytes) != SUCCESS) {
+      DBG("error in send while hashing\n");
+      return FAIL;
+    }
+    
+    
+    // prepare the message to send
+    //              group_id          sha1 hash size  data        padding
+    payload_size = sizeof(uint16_t) + CMC_HASHSIZE + data_len + pad_bytes;
+    message_size = sizeof(cmc_hdr_t) + payload_size + sizeof(uint16_t);
+    message_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, message_size));
+    data_header = (cmc_data_hdr_t*)( (void*) message_hdr + sizeof(cmc_hdr_t) );
+    
+    DBG("message_size: %d| pad_bytes: %d \n", message_size, pad_bytes);
+    
+    message_hdr->src_id = sock->local_id;
+    message_hdr->group_id = sock->group_id;
+    message_hdr->dst_id = dst_id;
+    
+    data_header->length = data_len;
+    
+    for (i = 0; i < payload_size; i += CMC_CC_BLOCKSIZE) {
+      if (call BlockCipher.encrypt(&(sock->master_key), 
+        ((uint8_t*) &clear_data)[i],(void*) &data_header[i]) != SUCCESS) {
+        DBG("error in send while encrypting\n");
+        return FAIL;
+      }
+    }
+    
+    DBG("here is the packet:");
+    print_hex(data_header, payload_size + sizeof(uint16_t));
+    
+    return call AMSend.send(AM_BROADCAST_ADDR, &pkt, message_size);
+    
+    // set new com_states
+    if (IS_SERVER) {
+      sock->com_state = CMC_ACKPENDING2;
+    }
+    else {
+      sock->com_state = CMC_ACKPENDING1;
+    }
+    return SUCCESS;
+    
+  }
   
   
   
@@ -166,7 +256,7 @@ module CMCP {
               // resent sync message
               sock->retry_counter++;
               sock->retry_timer = CMC_RETRY_TIME;
-              send_sync(sock, sock->server_public_key);
+              send_sync(sock, sock->public_key);
               DBG("resending sync message\n");
               return;
               
@@ -348,7 +438,7 @@ module CMCP {
         return msg;
     }
     
-    
+    return msg;
   }
   
   
@@ -444,7 +534,7 @@ module CMCP {
   
   command error_t CMC.send[uint8_t client](uint16_t id, 
     void* data, uint16_t data_len) {
-    
+    return send_data(client, id, data, data_len);
   }
   
   

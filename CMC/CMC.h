@@ -34,8 +34,18 @@
 
 // a public key in octet form is 42 byte in size for ECC160R1
 #define CMC_POINT_SIZE 42
+
 // the cipher context of a xtea is 16 bytes
 #define CMC_CC_SIZE 16
+
+// xtea works in 8 byte blocks
+#define CMC_CC_BLOCKSIZE 8
+
+
+/* the hashsize of the hash used in cmc, currently sha1 */
+#define CMC_HASHSIZE 20
+
+#define CMC_DATAFIELD_SIZE TOSH_DATA_LENGTH-CMC_HASHSIZE-sizeof(nx_uint16_t)
 
 /* the cannel for the MCMC network to operate on */
 #ifndef AM_CMC
@@ -176,9 +186,18 @@ typedef nx_struct cmc_key_hdr_t {
   nx_uint8_t encrypted_context[61 + CMC_CC_SIZE];
 } cmc_key_hdr_t;
 
+typedef nx_struct cmc_enc_data_hdr_t {
+  nx_uint16_t group_id;
+  nx_uint8_t hash[CMC_HASHSIZE];
+  
+  // this MUST come last
+  nx_uint8_t data[CMC_DATAFIELD_SIZE];
+} cmc_enc_data_hdr_t;
+
 typedef nx_struct cmc_data_hdr_t {
   nx_uint16_t length;
-} cmc_msg_hdr_t;
+  cmc_enc_data_hdr_t data;
+} cmc_data_hdr_t;
 
 // TODO: Ack header
 
