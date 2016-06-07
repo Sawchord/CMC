@@ -102,7 +102,9 @@ typedef struct cmc_sock_t {
   uint16_t server_id;
   
   /* buffer, for message construction */
-  uint8_t last_msg[CMC_MAX_MSG_LENGTH];
+  uint8_t last_dst;
+  uint8_t last_msg[CMC_DATAFIELD_SIZE];
+  uint8_t last_msg_len;
   
   // TODO: need hash buffer or something?
   
@@ -123,12 +125,12 @@ typedef struct cmc_sock_t {
   
 } cmc_sock_t;
 
-void print_hex (uint8_t* data, uint16_t length) {
+void print_hex (void* data, uint16_t length) {
   int i = 0;
   
   for (i = 0; i < length; i++) {
     if (i % 8 == 0) DBG("\n");
-    DBG("0x%02x ", data[i]);
+    DBG("0x%02x ", ((uint8_t*)data)[i]);
   }
   DBG("\n");
 }

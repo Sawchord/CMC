@@ -121,6 +121,8 @@ module CMCP {
     return e;
   }
   
+  
+  
   error_t send_data(uint8_t client, uint16_t dst_id,
     void* data, uint16_t data_len) {
     
@@ -168,7 +170,7 @@ module CMCP {
     message_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, message_size));
     data_header = (cmc_data_hdr_t*)( (void*) message_hdr + sizeof(cmc_hdr_t) );
     
-    DBG("message_size: %d| pad_bytes: %d \n", message_size, pad_bytes);
+    DBG("message_size: %d pad_bytes: %d \n", message_size, pad_bytes);
     
     message_hdr->src_id = sock->local_id;
     message_hdr->group_id = sock->group_id;
@@ -234,8 +236,6 @@ module CMCP {
     cmc_sock_t* sock;
     uint8_t i;
     
-    //DBG("process timer tick @%d ms\n", CMC_PROCESS_TIME);
-    
     // update the retry_timer of all sockets
     for (i = 0; i < N_SOCKS; i++) {
       sock = &socks[i];
@@ -273,6 +273,25 @@ module CMCP {
           }
           
           break; /* CMC_PRECONNECTION */
+        
+        case CMC_ACKPENDING1:
+          
+          if (sock->retry_timer == 0) {
+            if (sock->retry_counter < CMC_N_RETRIES) {
+              
+              // resend 
+              sock->retry_counter++;
+              sock->retry_timer = CMC_RETRY_TIME;
+              send_data(i, sock->last_dst, sock->last_msg, sock->last_msg_len);
+              DBG("resending last message\n");
+            }
+            else {
+              
+              
+            }
+          }
+          
+          break; /* CMC_ACKPENDING1 */
         
         default:
           //DBG("unknown or unimplemented timeout event occured\n");
@@ -532,9 +551,18 @@ module CMCP {
   
   
   
-  command error_t CMC.send[uint8_t client](uint16_t id, 
-    void* data, uint16_t data_len) {
-    return send_data(client, id, data, data_len);
+  command error_t CMC.send[uint8_t client](uint16_t dest_id, 
+    void* data, uint8_t data_len) {
+    
+    cmc_sock_t* sock = &socks[client];
+    sock->retry_counter = 0;
+    sock->retry_timer = CMC_RETRY_TIME;
+    
+    sock->last_dst = dest_id;
+    sock->last_msg_len = data_len;
+    memcpy(&(sock->last_msg), data, data_len);
+    
+    return send_data(client, dest_id, data, data_len);
   }
   
   

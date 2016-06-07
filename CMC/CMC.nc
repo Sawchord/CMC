@@ -39,7 +39,7 @@ interface CMC {
   command error_t connect(uint16_t group_id, Point* remote_public_key);
   
   /* send data over the cannel */
-  command error_t send(uint16_t id, void* data, uint16_t data_len);
+  command error_t send(uint16_t dest_id, void* data, uint8_t data_len);
   
   /* terminates the connection*/
   command error_t close();
