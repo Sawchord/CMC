@@ -201,6 +201,8 @@ typedef nx_struct cmc_data_hdr_t {
   cmc_enc_data_hdr_t data;
 } cmc_data_hdr_t;
 
-// TODO: Ack header
+typedef nx_struct cmc_ack_hdr_t {
+  nx_uint8_t hash[CMC_HASHSIZE];
+} cmc_ack_hdr_t;
 
 #endif /* CMC_H */
