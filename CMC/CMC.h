@@ -188,17 +188,19 @@ typedef nx_struct cmc_key_hdr_t {
   nx_uint8_t encrypted_context[61 + CMC_CC_SIZE];
 } cmc_key_hdr_t;
 
-typedef nx_struct cmc_enc_data_hdr_t {
+typedef nx_struct cmc_clear_data_hdr_t {
   nx_uint16_t group_id;
   nx_uint8_t hash[CMC_HASHSIZE];
-  
   // this MUST come last
   nx_uint8_t data[CMC_DATAFIELD_SIZE];
-} cmc_enc_data_hdr_t;
+} cmc_clear_data_hdr_t;
 
 typedef nx_struct cmc_data_hdr_t {
   nx_uint16_t length;
-  cmc_enc_data_hdr_t data;
+  nx_union {
+    cmc_clear_data_hdr_t clear_data;
+    nx_uint8_t enc_data[sizeof (cmc_clear_data_hdr_t)];
+  };
 } cmc_data_hdr_t;
 
 typedef nx_struct cmc_ack_hdr_t {

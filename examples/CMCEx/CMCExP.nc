@@ -91,7 +91,7 @@ module CMCExP {
   
   event void RadioControl.startDone(error_t e) {
     
-    char hash_output[20];
+    //char hash_output[20];
     
     if (e != SUCCESS) {
       DBG("error starting radio... retry\n");
@@ -161,12 +161,14 @@ module CMCExP {
       if (call CMC0.connect(1337, &server_pub_key) != SUCCESS) {
         DBG("send attempt failed\n");
       }
-      connected = TRUE;
+      //connected = TRUE;
     }
     
     if (TOS_NODE_ID != 1 && connected == TRUE && sending == FALSE) {
       DBG("sending teststring\n");
-      call CMC0.send(1, teststr, strlen(teststr));
+      if (call CMC0.send(1, teststr, strlen(teststr)) == SUCCESS) {
+        sending = TRUE;
+      }
     }
     
     

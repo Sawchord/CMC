@@ -6,7 +6,7 @@ PFLAGS += -DNEW_PRINTF_SEMANTICS
 
 # for the printf
 CFLAGS += -I$(TOSDIR)/lib/printf
-CFLAGS += -DPRINTF_BUFFER_SIZE=1024
+CFLAGS += -DPRINTF_BUFFER_SIZE=2048
 
 CFLAGS += -I$/../../CMC/TinyECC
 CFLAGS += -I$/../../CMC/crypto
