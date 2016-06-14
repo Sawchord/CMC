@@ -60,9 +60,12 @@ module CMCExP {
 } implementation {
   
   uint32_t oldtime, newtime;
-  bool sending = FALSE;
   
-  char teststr[] = "aabb";
+  bool sending = FALSE;
+  bool connected = FALSE;
+  
+  char teststr[] = "Some secret message nobody should now.\n";
+  char teststr2[] = "Some really secret answer.\n";
   
   NN_DIGIT client_priv_key[NUMWORDS];
   NN_DIGIT server_priv_key[NUMWORDS];
@@ -73,9 +76,8 @@ module CMCExP {
   event void Boot.booted() {
     oldtime = call LocalTime.get();
     // start the radio
-    // FIXME: is this ok to be here?
-    call ECC.init();
     
+    // start radio (must be done manually)
     call RadioControl.start();
     
   }
@@ -99,13 +101,16 @@ module CMCExP {
     
     newtime = call LocalTime.get();
     DBG("Radio is up after %d ms\n", (newtime - oldtime));
-    oldtime = newtime;
+    
+    /*oldtime = newtime;
     sha1_hash(&hash_output, &teststr, 4);
     newtime = call LocalTime.get();
     DBG("hashtest took %d ms and result:", (newtime - oldtime));
     print_hex(&hash_output, 20);
+    */
     
-    // after the radio is up, initialze the local key, which is needed for the Client init
+    // after the radio is up
+    //initialze the local key, which is needed for the Client init
     
     oldtime = newtime;
     
@@ -135,9 +140,9 @@ module CMCExP {
     if (TOS_NODE_ID == 1) {
       call CMC0.bind(1337);
     }
-    else {
-      call Timer.startOneShot(5000);
-    }
+    
+    call Timer.startPeriodic(5000);
+    
     
     newtime = call LocalTime.get();
     DBG("Socket initialized after %d ms\n", (newtime - oldtime));
@@ -148,19 +153,35 @@ module CMCExP {
   
   
   event void Timer.fired() {
-    DBG("attempt sync\n");
-    oldtime = call LocalTime.get();
-    if (call CMC0.connect(1337, &server_pub_key) != SUCCESS) {
-      DBG("send attempt failed\n");
+    
+    // if not server, attempt to connect to server
+    if (TOS_NODE_ID != 1 && connected == FALSE) {
+      DBG("attempt sync\n");
+      oldtime = call LocalTime.get();
+      if (call CMC0.connect(1337, &server_pub_key) != SUCCESS) {
+        DBG("send attempt failed\n");
+      }
+      connected = TRUE;
     }
+    
+    if (TOS_NODE_ID != 1 && connected == TRUE && sending == FALSE) {
+      DBG("sending teststring\n");
+      call CMC0.send(1, teststr, strlen(teststr));
+    }
+    
+    
+    
   }
   
   
   event void CMC0.connected(error_t e) {
     if (e == SUCCESS) {
-      call Timer.stop();
       newtime = call LocalTime.get();
       DBG("sync was successfull after %d ms\n", (newtime - oldtime));
+      connected = TRUE;
+    }
+    else {
+      DBG("connected fail raise\n");
     }
   }
   
@@ -173,7 +194,15 @@ module CMCExP {
   }
   
   event void CMC0.recv(void* payload, uint16_t plen) {
-    //call Leds.set((uint8_t) payload);
+    // print received messages
+    DBG("received string of length %d:\n", plen);
+    DBG("%s", payload);
+    
+    // iof server, answer
+    if (TOS_NODE_ID == 1) {
+      call CMC0.send(1, teststr2, strlen(teststr));
+    }
+    
   }
   
   

@@ -123,7 +123,7 @@ module CMCP {
   
   
   
-  error_t send_data(uint8_t client, uint16_t dst_id,
+  error_t send_data(cmc_sock_t* sock, uint16_t dst_id,
     void* data, uint16_t data_len) {
     
     cmc_hdr_t* message_hdr;
@@ -137,11 +137,13 @@ module CMCP {
     uint8_t payload_size;
     uint8_t pad_bytes;
     uint16_t i;
-    cmc_sock_t* sock = &socks[client];
+    
+    //cmc_sock_t* sock = &socks[client];
     
     pad_bytes = data_len % CMC_CC_BLOCKSIZE;
     
     // check for the right conditions to send
+    DBG("send:com_state: %d\n", sock->com_state);
     if (sock->com_state != CMC_ESTABLISHED) {
       DBG("socket not in condition to send\n");
       return FAIL;
@@ -244,7 +246,7 @@ module CMCP {
   command error_t Init.init() {
     uint8_t i;
     
-    //call ECC.init();
+    call ECC.init();
     
     for (i = 0; i < N_SOCKS; i++) {
       
@@ -317,7 +319,7 @@ module CMCP {
               // resend 
               sock->retry_counter++;
               sock->retry_timer = CMC_RETRY_TIME;
-              send_data(i, sock->last_dst, sock->last_msg, sock->last_msg_len);
+              send_data(i, sock->last_dst, &(sock->last_msg), sock->last_msg_len);
               DBG("resending last message\n");
             }
             else {
@@ -470,6 +472,7 @@ module CMCP {
             (uint8_t*) key_hdr, 61+CMC_CC_SIZE, (sock->private_key));
           
           //DBG("decryption: %d\n", crypt_err);
+          // FIXME: this event is apparently not rissen
           signal CMC.connected[i](SUCCESS);
           
           DBG("server connect success, got masterkey:");
@@ -522,8 +525,9 @@ module CMCP {
             sock->last_msg_len = data->length;
             sock->last_dst = packet->src_id;
             
+            DBG("send:com_state: %d\n", sock->com_state);
             // first try to send data;
-            if (send_data(i, sock->last_dst, &(sock->last_msg), sock->last_msg_len)
+            if (send_data(sock, sock->last_dst, &(sock->last_msg), sock->last_msg_len)
               != SUCCESS) {
               DBG("error while resending packet as server\n");
               return msg;
@@ -618,6 +622,7 @@ module CMCP {
             DBG("last message was acked\n");
             sock->com_state = CMC_ESTABLISHED;
             return msg;
+            // TODO: raise sendDone here?
           }
           
         }
@@ -735,7 +740,7 @@ module CMCP {
     memcpy(&(sock->last_msg), data, data_len);
     
     // first try to send data;
-    e = send_data(client, dest_id, data, data_len);
+    e = send_data(sock, dest_id, data, data_len);
     
     // set the retry timer, must be done after first attempt
     // or timer could tick, before data was send;
