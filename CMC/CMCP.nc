@@ -102,11 +102,6 @@ module CMCP {
     call ECC.point2octet((uint8_t*) &(sync_hdr->public_key), 
       CMC_POINT_SIZE, pub_key, FALSE);
     
-    //DBG("sync packet assembled:");
-    //print_hex((uint8_t*) &(sync_hdr->public_key), 42);
-    //DBG("out of pub_key");
-    //print_hex((uint8_t*) pub_key, 42);
-    
     return call AMSend.send(AM_BROADCAST_ADDR, &pkt, packet_size);
     
   }
@@ -123,8 +118,9 @@ module CMCP {
   
   
   
-  error_t send_data(cmc_sock_t* sock, uint16_t dst_id,
-    void* data, uint16_t data_len) {
+  /*error_t send_data(cmc_sock_t* sock, uint16_t dst_id,
+    void* data, uint16_t data_len) {*/
+    error_t send_data(cmc_sock_t* sock) {
     
     cmc_hdr_t* message_hdr;
     cmc_data_hdr_t* data_header;
@@ -138,12 +134,12 @@ module CMCP {
     uint8_t pad_bytes;
     uint16_t i;
     
-    //cmc_sock_t* sock = &socks[client];
+    uint8_t data_len = sock->last_msg_len;
     
     pad_bytes = data_len % CMC_CC_BLOCKSIZE;
     
     // check for the right conditions to send
-    DBG("send:com_state: %d\n", sock->com_state);
+    //DBG("send:com_state: %d\n", sock->com_state);
     if (sock->com_state != CMC_ESTABLISHED) {
       DBG("socket not in condition to send\n");
       return FAIL;
@@ -153,9 +149,9 @@ module CMCP {
       return FAIL;
     }
     
-    // build the data packet
+    //build the data packet
     clear_data.group_id = sock->group_id;
-    memcpy(&(clear_data.data), data, data_len);
+    memcpy(&(clear_data.data), &(sock->last_msg), data_len);
     // fill the rest with padbytes
     memset((void*) &(clear_data.data) + data_len, 0, pad_bytes);
     if (sha1_hash(&(clear_data.hash), &(clear_data.data), 
@@ -169,14 +165,19 @@ module CMCP {
     //              group_id          sha1 hash size  data        padding
     payload_size = sizeof(uint16_t) + CMC_HASHSIZE + data_len + pad_bytes;
     message_size = sizeof(cmc_hdr_t) + payload_size + sizeof(uint16_t);
+    
+    DBG("clear data packet:");
+    print_hex(&clear_data, payload_size);
+    
     message_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, message_size));
     data_header = (cmc_data_hdr_t*)( (void*) message_hdr + sizeof(cmc_hdr_t) );
     
+    DBG("message_hdr:%p data_header:%p\n", message_hdr, data_header);
     DBG("message_size: %d pad_bytes: %d \n", message_size, pad_bytes);
     
     message_hdr->src_id = sock->local_id;
     message_hdr->group_id = sock->group_id;
-    message_hdr->dst_id = dst_id;
+    message_hdr->dst_id = sock->last_dst;
     message_hdr->type = CMC_DATA;
     
     data_header->length = data_len;
@@ -196,7 +197,7 @@ module CMCP {
     return call AMSend.send(AM_BROADCAST_ADDR, &pkt, message_size);
     
     // set new com_states if not multicast
-    if (IS_SERVER && dst_id != 0xff) {
+    if (IS_SERVER && sock->last_dst != 0xff) {
       sock->com_state = CMC_ACKPENDING2;
     }
     else {
@@ -204,7 +205,7 @@ module CMCP {
     }
     return SUCCESS;
     
-  }
+  } /* send_data */
   
   
   error_t ack_data(uint8_t client, uint16_t dst_id,
@@ -319,7 +320,7 @@ module CMCP {
               // resend 
               sock->retry_counter++;
               sock->retry_timer = CMC_RETRY_TIME;
-              send_data(i, sock->last_dst, &(sock->last_msg), sock->last_msg_len);
+              send_data(sock);
               DBG("resending last message\n");
             }
             else {
@@ -355,7 +356,7 @@ module CMCP {
       
       if (socks[i].group_id == packet->group_id) {
         sock = &socks[i];
-        //DBG("found socket %d\n", i);
+        DBG("found socket %d\n", i);
         continue;
       }      
       
@@ -363,7 +364,7 @@ module CMCP {
     
     // if socket was not found, continue
     if (sock == NULL) {
-      DBG("recv msg, ignored, no socket found\n");
+      DBG("recv msg, ignored, no socket found with gid: %d\n", socks[i].group_id);
       return msg;
     }
     
@@ -407,34 +408,10 @@ module CMCP {
             61+CMC_CC_SIZE, (uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
             &remote_public_key);
           
-          // --- debug -- delete later
-          /*DBG("encryption: %d\n", crypt_err);
-          //DBG("packet=%p  sync_hdr=%p, answer_hdr=%p, answer_key_hdr=%p\n",
-            //packet, sync_hdr, answer_hdr, answer_key_hdr);
-          
-          DBG("remote pub key:");
-          print_hex((uint8_t*) &remote_public_key, 42);
-          
-          DBG("encrypted context looks like:");
-          print_hex((uint8_t*) answer_key_hdr, 61+CMC_CC_SIZE);
-          
-          memset( &(sock->master_key), 0,  16);
-          
-          crypt_err = call ECIES.decrypt((uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
-            (uint8_t*) answer_key_hdr, 61+CMC_CC_SIZE, (sock->private_key));
-          
-          DBG("decryption: %d\n", crypt_err);
-          DBG("encrypt decrypt loop:");
-          print_hex((uint8_t*) &(sock->master_key), 16);
-          */
-          // -- end of debug -- delete later
-          
           call AMSend.send(AM_BROADCAST_ADDR, &pkt, answer_size);
           
           signal CMC.connected[i](SUCCESS);
           
-          //DBG("answered sync packet:");
-          //print_hex((uint8_t*) answer_key_hdr, 61+CMC_CC_SIZE);
           
           return msg;
           
@@ -471,8 +448,7 @@ module CMCP {
           crypt_err = call ECIES.decrypt((uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
             (uint8_t*) key_hdr, 61+CMC_CC_SIZE, (sock->private_key));
           
-          //DBG("decryption: %d\n", crypt_err);
-          // FIXME: this event is apparently not rissen
+          // FIXME: this event is apparently not risen
           signal CMC.connected[i](SUCCESS);
           
           DBG("server connect success, got masterkey:");
@@ -525,9 +501,9 @@ module CMCP {
             sock->last_msg_len = data->length;
             sock->last_dst = packet->src_id;
             
-            DBG("send:com_state: %d\n", sock->com_state);
+            //DBG("send:com_state: %d\n", sock->com_state);
             // first try to send data;
-            if (send_data(sock, sock->last_dst, &(sock->last_msg), sock->last_msg_len)
+            if (send_data(sock)
               != SUCCESS) {
               DBG("error while resending packet as server\n");
               return msg;
@@ -564,8 +540,12 @@ module CMCP {
               }
               
             }
+            else {
+              // server does not need to change state on receiving data
+              sock->com_state = CMC_ESTABLISHED;
+            }
             
-            //signal user
+            DBG("signal user the message\n");
             signal CMC.recv[i](&(decrypted_data.data),
               data->length);
             
@@ -740,7 +720,7 @@ module CMCP {
     memcpy(&(sock->last_msg), data, data_len);
     
     // first try to send data;
-    e = send_data(sock, dest_id, data, data_len);
+    e = send_data(sock);
     
     // set the retry timer, must be done after first attempt
     // or timer could tick, before data was send;
