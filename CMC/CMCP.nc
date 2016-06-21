@@ -171,9 +171,6 @@ module CMCP {
       return FAIL;
     }
     
-    //DBG("constructed this clear data packet:");
-    //print_hex(&clear_data, payload_size);
-    
     
     // prepare the message to send
     message_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, message_size));
@@ -245,10 +242,10 @@ module CMCP {
     }
     
     // FIXME: this packet seems faulty
-    //if (call AMSend.send(AM_BROADCAST_ADDR, &pkt, ack_size) != SUCCESS) {
-    //  DBG("error while sending ack");
-    //  return FAIL;
-    //}
+    if (call AMSend.send(AM_BROADCAST_ADDR, &pkt, ack_size) != SUCCESS) {
+      DBG("error while sending ack");
+      return FAIL;
+    }
     
     return SUCCESS;
   }
@@ -280,6 +277,8 @@ module CMCP {
   event void Boot.booted() {
     call Timer.startPeriodic(CMC_PROCESS_TIME);
   }
+  
+  
   
   event void Timer.fired() {
     cmc_sock_t* sock;
@@ -331,6 +330,7 @@ module CMCP {
               // resend 
               sock->retry_counter++;
               sock->retry_timer = CMC_RETRY_TIME;
+              sock->com_state = CMC_ESTABLISHED;
               send_data(sock);
               DBG("resending last message\n");
             }
@@ -484,7 +484,6 @@ module CMCP {
           pad_bytes = (CMC_CC_BLOCKSIZE - ((data->length + sizeof(uint16_t) + CMC_HASHSIZE)
           % CMC_CC_BLOCKSIZE) % CMC_CC_BLOCKSIZE);
           
-          //payload_size = data->length + pad_bytes;
           payload_size = sizeof(uint16_t) + CMC_HASHSIZE + data->length + pad_bytes;
           
           for (j = 0; j < payload_size; j+= CMC_CC_BLOCKSIZE) {
@@ -508,12 +507,6 @@ module CMCP {
           
           if (IS_SERVER) {
             
-            // save the packet as last packet
-            /*memcpy(&(sock->last_msg), &(decrypted_data.data), data->length);
-            sock->last_msg_len = data->length;
-            sock->last_dst = packet->src_id;*/
-            
-            //DBG("send:com_state: %d\n", sock->com_state);
             // first try to send data;
             if (send_data(sock)
               != SUCCESS) {
@@ -521,7 +514,10 @@ module CMCP {
               return msg;
             }
             
-            sock->com_state = CMC_ACKPENDING2;
+            // server must go to ACKP2, if unicast, and server is not destination
+            if (packet->dst_id != sock->local_id && packet->dst_id != 0xff) {
+              sock->com_state = CMC_ACKPENDING2;
+            }
             
             // set the retry timer
             sock->retry_counter = 0;
@@ -541,11 +537,6 @@ module CMCP {
             //  or if you are the sender of the packet
             if (!(IS_SERVER) && packet->dst_id != 0xff) {
               
-              // save last message
-              /*memcpy(&(sock->last_msg), &(decrypted_data.data), data->length);
-              sock->last_msg_len = data->length;
-              sock->last_dst = packet->src_id;*/
-              
               sock->retry_counter = 0;
               sock->retry_timer = CMC_RETRY_TIME;
               
@@ -554,10 +545,6 @@ module CMCP {
                 return msg;
               }
               
-            }
-            else {
-              // server does not need to change state on receiving data
-              sock->com_state = CMC_ESTABLISHED;
             }
             
             DBG("signal user the message\n");
@@ -573,16 +560,54 @@ module CMCP {
             DBG("ACKPENDING1 in server should never happen\n");
             return msg;
           }
-          
-          
-          // TODO: ack checking without redecrypting the packet
-          
-          
-          if (1){
+          else {
+            
+            //check, whether this is a matching packet resend
+            cmc_clear_data_hdr_t decrypted_data;
+            CipherContext old_c;
+            int payload_size;
+            uint16_t j;
+            uint8_t pad_bytes;
+            
+            cmc_data_hdr_t* data;
+            data = (cmc_data_hdr_t*)( (void*) packet + sizeof(cmc_hdr_t)) ;
+            
+            // if packets datalength does not fit, it cant be the right packet
+            if (data->length != sock->last_msg_len) {
+              DBG("got packet, but length did not match\n");
+              return msg;
+            }
+            
+            memcpy(&old_c, &(sock->master_key), sizeof(CipherContext));
+            
+            pad_bytes = (CMC_CC_BLOCKSIZE - ((data->length + sizeof(uint16_t) +  
+              CMC_HASHSIZE) % CMC_CC_BLOCKSIZE) % CMC_CC_BLOCKSIZE);
+            
+            payload_size = sizeof(uint16_t) + CMC_HASHSIZE + data->length + pad_bytes;
+            
+            for (j = 0; j < payload_size; j+= CMC_CC_BLOCKSIZE) {
+            // decrypt the data, this updates the sockets context as well
+              if (call BlockCipher.decrypt(&old_c,
+                ( (uint8_t*) &(data->enc_data)) + j, 
+                ( (uint8_t*) &decrypted_data) + j ) != SUCCESS) {
+                DBG("error while decryption of recv msg\n");
+                return msg;
+              }
+            }
+            
+            DBG("dem packets\n");
+            DBG("%s", &decrypted_data.data);
+            DBG("%s", &(sock->last_msg));
+            
+            if (memcmp(&decrypted_data.data, &(sock->last_msg), sock->last_msg_len) != 0) {
+              DBG("this is not the packet we are looking for\n");
+              return msg;
+            }
+            
             DBG("this node got an ACK1\n");
             sock->com_state = CMC_ACKPENDING2;
-          }
           
+          }
         }
         else {
             DBG("socket was not in condition to receive data\n");
