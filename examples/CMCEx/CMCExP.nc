@@ -29,11 +29,12 @@
 #include <CMC.h>
 
 /* debug output */
-#ifdef DEBUG_OUT
+//#ifdef DEBUG_OUT
+#if(1)
 #include <printf.h>
-#define DBG(...) printf(__VA_ARGS__); printfflush()
+#define OUT(...) printf(__VA_ARGS__); printfflush()
 #else
-#define DBG(...) 
+#define OUT(...) 
 #endif
 
 
@@ -63,6 +64,7 @@ module CMCExP {
   
   bool sending = FALSE;
   bool connected = FALSE;
+  bool connecting = FALSE;
   
   char teststr[] = "Some secret message nobody should now.\n";
   char teststr2[] = "Some really secret answer.\n";
@@ -94,18 +96,18 @@ module CMCExP {
     //char hash_output[20];
     
     if (e != SUCCESS) {
-      DBG("error starting radio... retry\n");
+      OUT("error starting radio... retry\n");
       call RadioControl.start();
       return;
     }
     
     newtime = call LocalTime.get();
-    DBG("Radio is up after %d ms\n", (newtime - oldtime));
+    OUT("Radio is up after %d ms\n", (newtime - oldtime));
     
     /*oldtime = newtime;
     sha1_hash(&hash_output, &teststr, 4);
     newtime = call LocalTime.get();
-    DBG("hashtest took %d ms and result:", (newtime - oldtime));
+    OUT("hashtest took %d ms and result:", (newtime - oldtime));
     print_hex(&hash_output, 20);
     */
     
@@ -120,13 +122,13 @@ module CMCExP {
     call ECC.gen_public_key(&server_pub_key, server_priv_key);
     
     /*
-    DBG("client priv key:");
+    OUT("client priv key:");
     print_hex((uint8_t*)client_priv_key, NUMWORDS);
-    DBG("client pub key:");
+    OUT("client pub key:");
     print_hex((uint8_t*)&client_pub_key, 42);
-    DBG("server priv key:");
+    OUT("server priv key:");
     print_hex((uint8_t*)server_priv_key, NUMWORDS);
-    DBG("server pub key:");
+    OUT("server pub key:");
     print_hex((uint8_t*)&server_pub_key, 42);
     */
     
@@ -145,7 +147,7 @@ module CMCExP {
     
     
     newtime = call LocalTime.get();
-    DBG("Socket initialized after %d ms\n", (newtime - oldtime));
+    OUT("Socket initialized after %d ms\n", (newtime - oldtime));
     
   }
   
@@ -155,35 +157,34 @@ module CMCExP {
   event void Timer.fired() {
     
     // if not server, attempt to connect to server
-    if (TOS_NODE_ID != 1 && connected == FALSE) {
-      DBG("attempt sync\n");
+    if (TOS_NODE_ID != 1 && connected == FALSE && connecting == FALSE) {
+      OUT("attempt sync\n");
       oldtime = call LocalTime.get();
+      connecting = TRUE;
       if (call CMC0.connect(1337, &server_pub_key) != SUCCESS) {
-        DBG("send attempt failed\n");
+        OUT("send attempt failed\n");
       }
       //connected = TRUE;
     }
     
     if (TOS_NODE_ID != 1 && connected == TRUE && sending == FALSE) {
-      DBG("sending teststring\n");
+      OUT("sending teststring\n");
       if (call CMC0.send(1, teststr, strlen(teststr)) == SUCCESS) {
         sending = TRUE;
       }
     }
-    
-    
-    
   }
   
   
   event void CMC0.connected(error_t e) {
+    connecting = FALSE;
     if (e == SUCCESS) {
       newtime = call LocalTime.get();
-      DBG("sync was successfull after %d ms\n", (newtime - oldtime));
+      OUT("sync was successfull after %d ms\n", (newtime - oldtime));
       connected = TRUE;
     }
     else {
-      DBG("connected fail raise\n");
+      OUT("connected fail raise\n");
     }
   }
   
@@ -197,8 +198,8 @@ module CMCExP {
   
   event void CMC0.recv(void* payload, uint16_t plen) {
     // print received messages
-    DBG("received string of length %d:\n", plen);
-    DBG("%s", payload);
+    OUT("received string of length %d:\n", plen);
+    OUT("%s", payload);
     
     // iof server, answer
     if (TOS_NODE_ID == 1) {

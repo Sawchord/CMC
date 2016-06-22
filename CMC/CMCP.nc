@@ -69,6 +69,9 @@ module CMCP {
   
   message_t pkt;
   
+  bool interface_busy = FALSE;
+  cmc_sock_t* last_busy_sock;
+  
   /* holds all sockets to cmc servers in an array */
   cmc_sock_t socks[N_SOCKS];
   
@@ -82,6 +85,11 @@ module CMCP {
     uint8_t packet_size;
     cmc_hdr_t* packet_hdr;
     cmc_sync_hdr_t* sync_hdr;
+    
+    if (interface_busy == TRUE) {
+      DBG("send_sync failed, busy interface\n");
+      return FAIL;
+    }
     
     // calculate the packet size
     packet_size = sizeof(cmc_hdr_t) + sizeof(cmc_sync_hdr_t);
@@ -101,6 +109,10 @@ module CMCP {
     // fill in the public key of the server
     call ECC.point2octet((uint8_t*) &(sync_hdr->public_key), 
       CMC_POINT_SIZE, pub_key, FALSE);
+    
+    interface_busy = TRUE;
+    last_busy_sock = sock;
+    
     DBG("sync send\n");
     return call AMSend.send(AM_BROADCAST_ADDR, &pkt, packet_size);
     
@@ -118,8 +130,6 @@ module CMCP {
   
   
   
-  /*error_t send_data(cmc_sock_t* sock, uint16_t dst_id,
-    void* data, uint16_t data_len) {*/
   error_t send_data(cmc_sock_t* sock) {
     
     cmc_hdr_t* message_hdr;
@@ -133,8 +143,14 @@ module CMCP {
     uint8_t payload_size; /* actual size of the data field */
     uint8_t pad_bytes;
     uint16_t i;
+    uint8_t data_len;
     
-    uint8_t data_len = sock->last_msg_len;
+    if (interface_busy == TRUE) {
+      DBG("busy if\n");
+      return FAIL;
+    }
+    
+    data_len = sock->last_msg_len;
     
     DBG("data_len:%d\n", data_len);
     
@@ -199,6 +215,8 @@ module CMCP {
     //DBG("here come dat packet:");
     //print_hex(message_hdr, message_size);
     
+    interface_busy = TRUE;
+    last_busy_sock = sock;
     
     //DBG("send_data: %s\n", sock->last_msg);
     DBG("send_data\n");
@@ -227,6 +245,10 @@ module CMCP {
     
     uint8_t ack_size;
     
+    if (interface_busy == TRUE) {
+      DBG("ack_data failed, busy interface\n");
+      return FAIL;
+    }
     
     ack_size = sizeof(cmc_hdr_t) + sizeof(cmc_ack_hdr_t);
     ack_header = (cmc_hdr_t*)(call Packet.getPayload(&pkt, ack_size));
@@ -241,6 +263,9 @@ module CMCP {
       DBG("hashing error in ack\n");
       return FAIL;
     }
+    
+    interface_busy = TRUE;
+    last_busy_sock = sock;
     
     // FIXME: this packet seems faulty
     if (call AMSend.send(AM_BROADCAST_ADDR, &pkt, ack_size) != SUCCESS) {
@@ -271,7 +296,30 @@ module CMCP {
   }
   
   event void AMSend.sendDone(message_t* msg, error_t error) {
-    DBG("send done \n");
+    
+    cmc_sock_t* sock = last_busy_sock;
+    
+    
+    if (interface_busy != TRUE) {
+      DBG("send done risen with not busy interface. Must be a bug.\n");
+    }
+    
+    interface_busy = FALSE;
+    
+    switch (sock->com_state) {
+      
+      case CMC_ACKPENDING1:
+        break; /* CMC_ACKPENDING1 */
+      
+      case CMC_ACKPENDING2:
+        break; /* CMC_ACKPENDING2 */
+        
+      default:
+        DBG("send done \n");
+        break;
+      
+    }
+    
   }
   
   /* start the timer */
@@ -378,7 +426,7 @@ module CMCP {
       return msg;
     }
     
-    DBG("found socket %d in state %d\n", i, socks[i].com_state);
+    DBG("recv packet for socket %d in state %d\n", i, socks[i].com_state);
     
     switch(packet->type) {
       case CMC_SYNC:
@@ -415,6 +463,10 @@ module CMCP {
           crypt_err = call ECIES.encrypt((uint8_t*) answer_key_hdr, 
             61+CMC_CC_SIZE, (uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
             &remote_public_key);
+          
+          interface_busy = TRUE;
+          last_busy_sock = sock;
+          
           DBG("resent data\n");
           call AMSend.send(AM_BROADCAST_ADDR, &pkt, answer_size);
           
@@ -508,8 +560,7 @@ module CMCP {
           if (IS_SERVER) {
             
             // first try to send data;
-            if (send_data(sock)
-              != SUCCESS) {
+            if (send_data(sock) != SUCCESS) {
               DBG("error while resending packet as server\n");
               return msg;
             }
@@ -754,7 +805,13 @@ module CMCP {
     DBG("setting socket to PRECONNECTION\n");
     sock->com_state = CMC_PRECONNECTION;
     
-    return send_sync(sock, (sock->public_key));
+    if  (send_sync(sock, (sock->public_key)) != SUCCESS) {
+      sock->com_state = CMC_CLOSED;
+      return FAIL;
+    }
+    else {
+      return SUCCESS;
+    }
     
   }
   
