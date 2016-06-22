@@ -202,7 +202,7 @@ module CMCExP {
     
     // iof server, answer
     if (TOS_NODE_ID == 1) {
-      call CMC0.send(1, teststr2, strlen(teststr));
+      //call CMC0.send(1, teststr2, strlen(teststr2));
     }
     
   }

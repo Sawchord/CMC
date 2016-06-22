@@ -143,7 +143,7 @@ module CMCP {
       % CMC_CC_BLOCKSIZE) % CMC_CC_BLOCKSIZE);
     
     // check for the right conditions to send
-    if (sock->com_state != CMC_ESTABLISHED) {
+    if ( !(sock->com_state == CMC_ESTABLISHED || sock->com_state == CMC_ACKPENDING1) ) {
       DBG("socket not in condition to send\n");
       return FAIL;
     }
@@ -200,6 +200,7 @@ module CMCP {
     //print_hex(message_hdr, message_size);
     
     
+    //DBG("send_data: %s\n", sock->last_msg);
     DBG("send_data\n");
     return call AMSend.send(AM_BROADCAST_ADDR, &pkt, message_size);
     
@@ -270,7 +271,7 @@ module CMCP {
   }
   
   event void AMSend.sendDone(message_t* msg, error_t error) {
-    
+    DBG("send done \n");
   }
   
   /* start the timer */
@@ -287,7 +288,7 @@ module CMCP {
     // update the retry_timer of all sockets
     for (i = 0; i < N_SOCKS; i++) {
       sock = &socks[i];
-      if (( (int32_t) sock->retry_timer - CMC_PROCESS_TIME) < 0) {
+      if (( ((int32_t) sock->retry_timer ) - CMC_PROCESS_TIME) < 0) {
         sock->retry_timer = 0;
       }
       else {
@@ -330,7 +331,6 @@ module CMCP {
               // resend 
               sock->retry_counter++;
               sock->retry_timer = CMC_RETRY_TIME;
-              sock->com_state = CMC_ESTABLISHED;
               send_data(sock);
               DBG("resending last message\n");
             }
@@ -378,7 +378,7 @@ module CMCP {
       return msg;
     }
     
-    DBG("found socket %d\n", i);
+    DBG("found socket %d in state %d\n", i, socks[i].com_state);
     
     switch(packet->type) {
       case CMC_SYNC:
@@ -481,6 +481,8 @@ module CMCP {
           cmc_data_hdr_t* data;
           data = (cmc_data_hdr_t*)( (void*) packet + sizeof(cmc_hdr_t)) ;
           
+          DBG("got data from %d to %d\n", packet->src_id, packet->dst_id);
+          
           pad_bytes = (CMC_CC_BLOCKSIZE - ((data->length + sizeof(uint16_t) + CMC_HASHSIZE)
           % CMC_CC_BLOCKSIZE) % CMC_CC_BLOCKSIZE);
           
@@ -496,8 +498,6 @@ module CMCP {
             }
           }
           
-          //DBG("decryption with pl %d give:", payload_size);
-          //print_hex(&decrypted_data, payload_size);
           
           // TODO:check authenticity and integry
           
@@ -532,9 +532,10 @@ module CMCP {
           }
           
           else {
-            // this part of the code is only reached, when this node receiver is
-            // send ack header to server, not necessary, if you are server
-            //  or if you are the sender of the packet
+            
+            /* this part of the code is only reached, if this node is receiver.
+             * send ack header to server, not necessary, if you are server
+             *  or if you are the sender of the packet */
             if (!(IS_SERVER) && packet->dst_id != 0xff) {
               
               sock->retry_counter = 0;
@@ -544,13 +545,16 @@ module CMCP {
                 DBG("error while acking packet\n");
                 return msg;
               }
-              
             }
             
             DBG("signal user the message\n");
+            /* FIXME: if the user uses send in this block, 
+             * the ACK1 of the packet fails, because the if sis busy.
+             * I need to introduce some resource management here 
+             */
             signal CMC.recv[i](&(decrypted_data.data),
               data->length);
-            
+            return msg;
           }
           
         }
@@ -595,9 +599,9 @@ module CMCP {
               }
             }
             
-            DBG("dem packets\n");
-            DBG("%s", &decrypted_data.data);
-            DBG("%s", &(sock->last_msg));
+            //DBG("dem packets\n");
+            //DBG("%s", &decrypted_data.data);
+            //DBG("%s", &(sock->last_msg));
             
             if (memcmp(&decrypted_data.data, &(sock->last_msg), sock->last_msg_len) != 0) {
               DBG("this is not the packet we are looking for\n");
@@ -605,7 +609,14 @@ module CMCP {
             }
             
             DBG("this node got an ACK1\n");
-            sock->com_state = CMC_ACKPENDING2;
+            if (sock->last_dst == sock->server_id) {
+              DBG("dst was server, going to ESTABLISHED\n");
+              sock->com_state = CMC_ESTABLISHED;
+            }
+            else {
+              DBG("going to ACKPENDING2");
+              sock->com_state = CMC_ACKPENDING2;
+            }
           
           }
         }
