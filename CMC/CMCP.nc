@@ -71,6 +71,7 @@ module CMCP {
   
   bool interface_busy = FALSE;
   cmc_sock_t* last_busy_sock;
+  uint8_t last_busy_sock_num;
   
   /* holds all sockets to cmc servers in an array */
   cmc_sock_t socks[N_SOCKS];
@@ -308,8 +309,13 @@ module CMCP {
     
     switch (sock->com_state) {
       
-      case CMC_ACKPENDING1:
-        break; /* CMC_ACKPENDING1 */
+      case CMC_ESTABLISHED:
+        
+        //DBG("signal user the message\n");
+        //signal CMC.recv[last_busy_sock_num]
+        //  (&(sock->last_msg), sock->last_msg_len);
+        
+        //break; /* CMC_ACKPENDING1 */
       
       case CMC_ACKPENDING2:
         break; /* CMC_ACKPENDING2 */
@@ -592,19 +598,27 @@ module CMCP {
               sock->retry_counter = 0;
               sock->retry_timer = CMC_RETRY_TIME;
               
+              // safe the number of the busy socket
+              last_busy_sock_num = i;
+              
               if (ack_data(sock) != SUCCESS) {
                 DBG("error while acking packet\n");
                 return msg;
               }
             }
             
-            DBG("signal user the message\n");
+            // NOTE: this is the old user singal metho, wich had a major bug
             /* FIXME: if the user uses send in this block, 
              * the ACK1 of the packet fails, because the if sis busy.
              * I need to introduce some resource management here 
              */
+            /*
+            DBG("signal user the message\n");
             signal CMC.recv[i](&(decrypted_data.data),
               data->length);
+              
+              */
+              
             return msg;
           }
           

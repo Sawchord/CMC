@@ -201,9 +201,9 @@ module CMCExP {
     OUT("received string of length %d:\n", plen);
     OUT("%s", payload);
     
-    // iof server, answer
+    // if server, answer
     if (TOS_NODE_ID == 1) {
-      //call CMC0.send(1, teststr2, strlen(teststr2));
+      call CMC0.send(1, teststr2, strlen(teststr2));
     }
     
   }
