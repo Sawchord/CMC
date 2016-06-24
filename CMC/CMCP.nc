@@ -69,9 +69,29 @@ module CMCP {
   
   message_t pkt;
   
+  /* This bool must be set, whenever a
+   * call to AMSend.send is made, to prevent
+   * other parts of the program try to use 
+   * the Radio while its busy.
+   */
   bool interface_busy = FALSE;
+  
+  /* Sometime, a function needs to do something
+   * after already sending something. If this requires
+   * sending, it can not be done directly, since the
+   * interface is still busy. This bool is set, to
+   * indicate, that something still need to be done,
+   * the next time, the interface comes out of busy.
+   */
+  bool interface_callback = FALSE;
+  
+  /* Point this to the last socket, that used
+   * the interface
+   */
   cmc_sock_t* last_busy_sock;
-  uint8_t last_busy_sock_num;
+  
+  /* Holds the message type, of the last send msg. */
+  uint8_t last_send_msg_type;
   
   /* holds all sockets to cmc servers in an array */
   cmc_sock_t socks[N_SOCKS];
@@ -113,6 +133,7 @@ module CMCP {
     
     interface_busy = TRUE;
     last_busy_sock = sock;
+    last_send_msg_type = CMC_SYNC;
     
     DBG("sync send\n");
     return call AMSend.send(AM_BROADCAST_ADDR, &pkt, packet_size);
@@ -122,11 +143,11 @@ module CMCP {
   /* simple sha1 hash of a message */
   error_t sha1_hash(void* output, void* input, uint16_t input_len) {
     SHA1Context ctx;
-    error_t e;
-    e = call SHA1.reset(&ctx);
-    e = call SHA1.update(&ctx, input, input_len);
-    e = call SHA1.digest(&ctx, output);
-    return e;
+    error_t err;
+    err = call SHA1.reset(&ctx);
+    err = call SHA1.update(&ctx, input, input_len);
+    err = call SHA1.digest(&ctx, output);
+    return err;
   }
   
   
@@ -136,11 +157,9 @@ module CMCP {
     cmc_hdr_t* message_hdr;
     cmc_data_hdr_t* data_header;
     
-    // the messages body needs to be constructed before it can be encrypted
-    // this requires two memcopys ... should be retweaked in the future
     cmc_clear_data_hdr_t clear_data;
     
-    uint8_t message_size; /* size of the complete messahe including main header */
+    uint8_t message_size; /* size of the complete message including main header */
     uint8_t payload_size; /* actual size of the data field */
     uint8_t pad_bytes;
     uint16_t i;
@@ -193,7 +212,6 @@ module CMCP {
     message_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, message_size));
     data_header = (cmc_data_hdr_t*)( (void*) message_hdr + sizeof(cmc_hdr_t) );
     
-    //DBG("message_hdr:%p data_header:%p\n", message_hdr, data_header);
     DBG("payload_size: %d pad_bytes: %d \n", payload_size, pad_bytes);
     
     message_hdr->src_id = sock->local_id;
@@ -213,19 +231,22 @@ module CMCP {
       }
     }
     
-    //DBG("here come dat packet:");
-    //print_hex(message_hdr, message_size);
     
     interface_busy = TRUE;
     last_busy_sock = sock;
+    last_send_msg_type = CMC_DATA;
     
     //DBG("send_data: %s\n", sock->last_msg);
     DBG("send_data\n");
-    return call AMSend.send(AM_BROADCAST_ADDR, &pkt, message_size);
+    if  (call AMSend.send(AM_BROADCAST_ADDR, &pkt, message_size) != SUCCESS) {
+      DBG("error sending data\n");
+      return FAIL;
+    }
     
     // set new com_states if not multicast
     if (sock->last_dst != 0xff) {
       if (IS_SERVER) {
+        // FIXME: if dst is self, change state?
         sock->com_state = CMC_ACKPENDING2;
       }
       else {
@@ -237,10 +258,9 @@ module CMCP {
   } /* send_data */
   
   
-  /*error_t ack_data(uint8_t client, uint16_t dst_id,
-     void* data, uint16_t data_len) {*/
-    
+  
   error_t ack_data(cmc_sock_t* sock) {
+    // NOTE: untested
     cmc_hdr_t* ack_header;
     cmc_ack_hdr_t* ack_field;
     
@@ -267,6 +287,7 @@ module CMCP {
     
     interface_busy = TRUE;
     last_busy_sock = sock;
+    last_send_msg_type = CMC_ACK;
     
     // FIXME: this packet seems faulty
     if (call AMSend.send(AM_BROADCAST_ADDR, &pkt, ack_size) != SUCCESS) {
@@ -296,43 +317,73 @@ module CMCP {
     return SUCCESS;
   }
   
-  event void AMSend.sendDone(message_t* msg, error_t error) {
-    
-    cmc_sock_t* sock = last_busy_sock;
-    
-    
-    if (interface_busy != TRUE) {
-      DBG("send done risen with not busy interface. Must be a bug.\n");
-    }
-    
-    interface_busy = FALSE;
-    
-    switch (sock->com_state) {
-      
-      case CMC_ESTABLISHED:
-        
-        //DBG("signal user the message\n");
-        //signal CMC.recv[last_busy_sock_num]
-        //  (&(sock->last_msg), sock->last_msg_len);
-        
-        //break; /* CMC_ACKPENDING1 */
-      
-      case CMC_ACKPENDING2:
-        break; /* CMC_ACKPENDING2 */
-        
-      default:
-        DBG("send done \n");
-        break;
-      
-    }
-    
-  }
   
   /* start the timer */
   event void Boot.booted() {
     call Timer.startPeriodic(CMC_PROCESS_TIME);
   }
   
+  
+  event void AMSend.sendDone(message_t* msg, error_t error) {
+    
+    cmc_sock_t* sock = last_busy_sock;
+    uint8_t last_busy_sock_num;
+    
+    if (interface_busy != TRUE) {
+      DBG("send done risen with not busy interface -> bug.\n");
+    }
+    interface_busy = FALSE;
+    
+    // quit, if nothing needs to be done
+    if (interface_callback == FALSE) {
+      DBG("send done");
+      return;
+    }
+    interface_callback = FALSE;
+    
+    last_busy_sock_num = (uint8_t) ((void*) last_busy_sock - (void*) sock);
+    
+    
+    switch (last_send_msg_type) {
+      
+      case CMC_SYNC:
+        break; /* CMC_SYNC */
+        
+      case CMC_KEY:
+        break; /* CMC_KEY */
+        
+      case CMC_DATA:
+        
+        DBG("signal user the message\n");
+        signal CMC.recv[last_busy_sock_num]
+          (&(sock->last_msg), sock->last_msg_len);
+        
+        break; /* CMC_DATA */
+        
+      case CMC_ACK:
+        break; /* CMC_ACK */
+      
+      default:
+        DBG("sendDone risen without last_send_msg_type set -> bug");
+        break;
+      
+       // // FIXME: why is it not working?
+       // DBG("signal user the message\n");
+       // signal CMC.recv[last_busy_sock_num]
+       //   (&(sock->last_msg), sock->last_msg_len);
+      //  
+       // break; /* CMC_ACKPENDING1 */
+      
+      //case CMC_ACKPENDING2:
+      //  break; /* CMC_ACKPENDING2 */
+        
+      //default:
+      //  DBG("send done \n");
+      //  break;
+      
+    }
+    
+  }
   
   
   event void Timer.fired() {
@@ -401,7 +452,6 @@ module CMCP {
           
           break; /* CMC_ESTABLISHED */
         default:
-          //DBG("unknown or unimplemented timeout event occured\n");
           return;
       }
       
@@ -472,6 +522,8 @@ module CMCP {
           
           interface_busy = TRUE;
           last_busy_sock = sock;
+          last_send_msg_type = CMC_KEY;
+          
           
           DBG("resent data\n");
           call AMSend.send(AM_BROADCAST_ADDR, &pkt, answer_size);
@@ -565,13 +617,15 @@ module CMCP {
           
           if (IS_SERVER) {
             
-            // first try to send data;
+            // first try to resend data, step 2 of protocoll
+            interface_callback = TRUE;
             if (send_data(sock) != SUCCESS) {
               DBG("error while resending packet as server\n");
+              interface_callback = FALSE;
               return msg;
             }
             
-            // server must go to ACKP2, if unicast, and server is not destination
+            // server must go to ACKP2, if not unicast, and server is not destination
             if (packet->dst_id != sock->local_id && packet->dst_id != 0xff) {
               sock->com_state = CMC_ACKPENDING2;
             }
@@ -582,7 +636,8 @@ module CMCP {
             
           }
           
-          // check, wheter you are recipient
+          // check, whether you are recipient
+          // FIXME: check, wether server is sender -- or done by auth check?
           if (packet->dst_id != sock->local_id) {
             DBG("updated cc, returning\n");
             return msg;
@@ -598,16 +653,13 @@ module CMCP {
               sock->retry_counter = 0;
               sock->retry_timer = CMC_RETRY_TIME;
               
-              // safe the number of the busy socket
-              last_busy_sock_num = i;
-              
               if (ack_data(sock) != SUCCESS) {
                 DBG("error while acking packet\n");
                 return msg;
               }
             }
             
-            // NOTE: this is the old user singal metho, wich had a major bug
+            // NOTE: this is the old user singal method, wich has a major bug
             /* FIXME: if the user uses send in this block, 
              * the ACK1 of the packet fails, because the if sis busy.
              * I need to introduce some resource management here 
@@ -664,9 +716,6 @@ module CMCP {
               }
             }
             
-            //DBG("dem packets\n");
-            //DBG("%s", &decrypted_data.data);
-            //DBG("%s", &(sock->last_msg));
             
             if (memcmp(&decrypted_data.data, &(sock->last_msg), sock->last_msg_len) != 0) {
               DBG("this is not the packet we are looking for\n");
@@ -812,10 +861,6 @@ module CMCP {
     sock->server_public_key = remote_public_key;
     sock->group_id = group_id;
     
-    // prepare retry timer for resending SYNC, if this is lost
-    sock->retry_counter = 0;
-    sock->retry_timer = CMC_RETRY_TIME;
-    
     DBG("setting socket to PRECONNECTION\n");
     sock->com_state = CMC_PRECONNECTION;
     
@@ -824,6 +869,11 @@ module CMCP {
       return FAIL;
     }
     else {
+      
+      // prepare retry timer for resending SYNC, if this is lost
+      sock->retry_counter = 0;
+      sock->retry_timer = CMC_RETRY_TIME;
+      
       return SUCCESS;
     }
     
@@ -834,7 +884,7 @@ module CMCP {
   command error_t CMC.send[uint8_t client](uint16_t dest_id, 
     void* data, uint8_t data_len) {
     
-    error_t e;
+    error_t err;
     cmc_sock_t* sock = &socks[client];
     // copy needed info to socket, needed for resend to be possible
     sock->last_dst = dest_id;
@@ -844,8 +894,8 @@ module CMCP {
     
     
     // first try to send data;
-    e = send_data(sock);
-    if (e == SUCCESS) {
+    err = send_data(sock);
+    if (err == SUCCESS) {
       DBG("setting COM_STATE to ACKPENDING1\n");
       sock->com_state = CMC_ACKPENDING1;
     }
@@ -856,7 +906,7 @@ module CMCP {
     sock->retry_counter = 0;
     sock->retry_timer = CMC_RETRY_TIME;
     
-    return e;
+    return err;
   }
   
   

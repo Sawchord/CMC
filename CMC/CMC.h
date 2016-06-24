@@ -149,11 +149,11 @@ enum {
 /* cmc type flags */
 enum {
   CMC_SYNC = 0x0,
-  CMC_ERR,
   CMC_KEY,
   CMC_ACK,
   CMC_DATA,
 };
+
 
 
 /* cmc header type */
