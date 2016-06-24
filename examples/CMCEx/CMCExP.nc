@@ -169,7 +169,7 @@ module CMCExP {
     
     if (TOS_NODE_ID != 1 && connected == TRUE && sending == FALSE) {
       OUT("sending teststring\n");
-      if (call CMC0.send(1, teststr, strlen(teststr)) == SUCCESS) {
+      if (call CMC0.send(1, teststr, strlen(teststr)+1) == SUCCESS) {
         sending = TRUE;
       }
     }
@@ -203,7 +203,7 @@ module CMCExP {
     
     // if server, answer
     if (TOS_NODE_ID == 1) {
-      call CMC0.send(1, teststr2, strlen(teststr2));
+      call CMC0.send(2, teststr2, strlen(teststr2)+1);
     }
     
   }

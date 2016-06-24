@@ -243,17 +243,8 @@ module CMCP {
       return FAIL;
     }
     
-    // set new com_states if not multicast
-    if (sock->last_dst != 0xff) {
-      if (IS_SERVER) {
-        // FIXME: if dst is self, change state?
-        sock->com_state = CMC_ACKPENDING2;
-      }
-      else {
-        sock->com_state = CMC_ACKPENDING1;
-      }
-    }
     return SUCCESS;
+    
     
   } /* send_data */
   
@@ -285,7 +276,11 @@ module CMCP {
       return FAIL;
     }
     
+    //DBG("calculated hash:");
+    //print_hex(ack_field->hash, CMC_HASHSIZE);
+    
     interface_busy = TRUE;
+    interface_callback = TRUE;
     last_busy_sock = sock;
     last_send_msg_type = CMC_ACK;
     
@@ -295,6 +290,7 @@ module CMCP {
       return FAIL;
     }
     
+    DBG("acked data\n");
     return SUCCESS;
   }
   
@@ -336,7 +332,7 @@ module CMCP {
     
     // quit, if nothing needs to be done
     if (interface_callback == FALSE) {
-      DBG("send done");
+      DBG("send done\n");
       return;
     }
     interface_callback = FALSE;
@@ -361,25 +357,17 @@ module CMCP {
         break; /* CMC_DATA */
         
       case CMC_ACK:
+        
+        DBG("signal user the message\n");
+        signal CMC.recv[last_busy_sock_num]
+          (&(sock->last_msg), sock->last_msg_len);
+        
         break; /* CMC_ACK */
       
       default:
         DBG("sendDone risen without last_send_msg_type set -> bug");
         break;
       
-       // // FIXME: why is it not working?
-       // DBG("signal user the message\n");
-       // signal CMC.recv[last_busy_sock_num]
-       //   (&(sock->last_msg), sock->last_msg_len);
-      //  
-       // break; /* CMC_ACKPENDING1 */
-      
-      //case CMC_ACKPENDING2:
-      //  break; /* CMC_ACKPENDING2 */
-        
-      //default:
-      //  DBG("send done \n");
-      //  break;
       
     }
     
@@ -456,7 +444,8 @@ module CMCP {
       }
       
     }
-    
+    // TODO: got back into initial states, after timeout 
+    // (right now, only the senders go back)
   }
   
   
@@ -752,22 +741,25 @@ module CMCP {
           uint8_t hash[CMC_HASHSIZE];
           cmc_ack_hdr_t* ack_header;
           
-          ack_header = (cmc_ack_hdr_t*)( (void*) packet + sizeof(cmc_ack_hdr_t));
+          ack_header = (cmc_ack_hdr_t*)( (void*) packet + sizeof(cmc_hdr_t));
           
           if (sha1_hash(hash, &(sock->last_msg), sock->last_msg_len) != SUCCESS) {
             DBG("hashing error in ack2\n");
           return msg;
           }
           
+          //DBG("hash comparison:");
+          //print_hex(hash, CMC_HASHSIZE);
+          //print_hex(ack_header->hash, CMC_HASHSIZE);
+          
           if (memcmp(hash, &(ack_header->hash), CMC_HASHSIZE) !=0) {
-            DBG("got ack, but hash was in correct > ignored\n");
+            DBG("got ack, but hash was incorrect > ignored\n");
             return msg;
           }
           else {
-            DBG("last message was acked\n");
+            DBG("last message was acked, going to ESTABLISHED\n");
             sock->com_state = CMC_ESTABLISHED;
             return msg;
-            // TODO: raise sendDone here?
           }
           
         }
@@ -886,6 +878,12 @@ module CMCP {
     
     error_t err;
     cmc_sock_t* sock = &socks[client];
+    
+    // if node addresses itself, make simple pointer handling out of it
+    if (sock->local_id == dest_id) {
+      signal CMC.recv[client](data, data_len);
+    }
+    
     // copy needed info to socket, needed for resend to be possible
     sock->last_dst = dest_id;
     sock->last_msg_len = data_len;
@@ -896,8 +894,14 @@ module CMCP {
     // first try to send data;
     err = send_data(sock);
     if (err == SUCCESS) {
-      DBG("setting COM_STATE to ACKPENDING1\n");
-      sock->com_state = CMC_ACKPENDING1;
+      if (IS_SERVER) {
+        DBG("setting COM_STATE to ACKPENDING2, cause server\n");
+        sock->com_state = CMC_ACKPENDING2;
+      }
+      else {
+        DBG("setting COM_STATE to ACKPENDING1\n");
+        sock->com_state = CMC_ACKPENDING1;
+      }
     }
     
     // set the retry timer, must be done after first attempt
