@@ -106,7 +106,6 @@ typedef struct cmc_sock_t {
   uint8_t last_msg[CMC_DATAFIELD_SIZE];
   uint8_t last_msg_len;
   
-  // TODO: need hash buffer or something?
   
   /* this connections private and public key */
   NN_DIGIT* private_key;

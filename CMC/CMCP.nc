@@ -174,11 +174,11 @@ module CMCP {
     
     data_len = sock->last_msg_len;
     
-    DBG("data_len:%d\n", data_len);
-    
     // calculate the number of padding bytes needed
     pad_bytes = (CMC_CC_BLOCKSIZE - ( (data_len + sizeof(uint16_t) + CMC_HASHSIZE)
       % CMC_CC_BLOCKSIZE) % CMC_CC_BLOCKSIZE);
+    
+    DBG("data_len:%d pad_bytes:%d\n", data_len, pad_bytes);
     
     // check for the right conditions to send
     if ( !(sock->com_state == CMC_ESTABLISHED || sock->com_state == CMC_ACKPENDING1) ) {
@@ -210,6 +210,8 @@ module CMCP {
       return FAIL;
     }
     
+    DBG("Calculated message hash:");
+    print_hex(&(clear_data.hash), CMC_HASHSIZE);
     
     // prepare the message to send
     message_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, message_size));
@@ -585,6 +587,14 @@ module CMCP {
           uint8_t payload_size;
           uint16_t j;
           
+          /* The old master_key needs to be saved,
+           * since it may be necessary to revert to it
+           * if the integrity or authenticity check fails.
+           */
+          NN_DIGIT old_master_key;
+          
+          uint8_t hash[CMC_HASHSIZE];
+          
           cmc_data_hdr_t* data;
           data = (cmc_data_hdr_t*)( (void*) packet + sizeof(cmc_hdr_t)) ;
           
@@ -594,6 +604,9 @@ module CMCP {
           % CMC_CC_BLOCKSIZE) % CMC_CC_BLOCKSIZE);
           
           payload_size = sizeof(uint16_t) + CMC_HASHSIZE + data->length + pad_bytes;
+          
+          // Save masterkey
+          memcpy(&old_master_key, &(sock->master_key), sizeof(NN_DIGIT));
           
           for (j = 0; j < payload_size; j+= CMC_CC_BLOCKSIZE) {
             // decrypt the data, this updates the sockets context as well
@@ -606,7 +619,37 @@ module CMCP {
           }
           
           
-          // TODO:check authenticity and integry
+          // Check authenticity
+          if (decrypted_data.group_id != sock->group_id) {
+            DBG("Gids not matching, packet forged\n");
+            DBG("recvd gid: %d, socks gid: %d", decrypted_data.group_id, sock->group_id);
+            
+            // revert key
+            memcpy(&(sock->master_key), &old_master_key, sizeof(NN_DIGIT));
+            return msg;
+          }
+          
+          // Check integrity
+          if (sha1_hash(hash, &(decrypted_data.data), 
+            (data->length + pad_bytes)) != SUCCESS) {
+            
+            DBG("hashing error while checking integrity\n");
+          return msg;
+          }
+          if (memcmp(hash, decrypted_data.hash, CMC_HASHSIZE) != 0) {
+            DBG("Hashes are not matching, integrity fail\n");
+            DBG("Received hash:");
+            print_hex(&(decrypted_data.hash), CMC_HASHSIZE);
+            
+            DBG("Calculated hash:");
+            print_hex(hash, CMC_HASHSIZE);
+            
+            // revert key
+            memcpy(&(sock->master_key), &old_master_key, sizeof(NN_DIGIT));
+            return msg;
+          }
+          
+          
           
           memcpy(&(sock->last_msg), &(decrypted_data.data), data->length);
           sock->last_msg_len = data->length;
@@ -654,18 +697,6 @@ module CMCP {
                 return msg;
               }
             }
-            
-            // NOTE: this is the old user singal method, wich has a major bug
-            /* FIXME: if the user uses send in this block, 
-             * the ACK1 of the packet fails, because the if sis busy.
-             * I need to introduce some resource management here 
-             */
-            /*
-            DBG("signal user the message\n");
-            signal CMC.recv[i](&(decrypted_data.data),
-              data->length);
-              
-              */
               
             return msg;
           }
