@@ -417,8 +417,8 @@ module CMCP {
               
               // connection attempt failed
               sock->com_state = CMC_CLOSED;
-              signal CMC.connected[i](FAIL);
               DBG("a connection attempt has failed\n");
+              signal CMC.connected[i](FAIL);
               return;
               
             }
@@ -426,12 +426,21 @@ module CMCP {
           
           break; /* CMC_PRECONNECTION */
         
+        
+        /* The server needs to behave in ACKPENDING2
+         * as a client node in ACKPENDING1.
+         * The following creates a switch falltrough,
+         * but only, if the node is a server.
+         */
+        case CMC_ACKPENDING2:
+          if (!IS_SERVER) break;
+        
         case CMC_ACKPENDING1:
           
           if (sock->retry_timer == 0) {
             if (sock->retry_counter < CMC_N_RETRIES) {
               
-              // resend 
+              // resend the message
               sock->retry_counter++;
               sock->retry_timer = CMC_RETRY_TIME;
               send_data(sock);
@@ -439,23 +448,50 @@ module CMCP {
             }
             else {
               
+              // send attempt attempt failed
+              sock->com_state = CMC_CLOSED;
+              DBG("sending the message has failed\n");
+              signal CMC.sendDone[i](FAIL);
+              return;
               
             }
           }
           
           break; /* CMC_ACKPENDING1 */
+        
+        
+         /* This part handles the resending of the ACK packet
+          * on the receiving node.
+          */
         case CMC_ESTABLISHED:
-          
-          // TODO: write ack resent thingy
-          
+          /*
+          if (sock->retry_timer == 0) {
+            if (sock->retry_counter < CMC_N_RETRIES) {
+              
+              sock->retry_counter++;
+              sock->retry_timer = CMC_RETRY_TIME;
+              DBG("");
+              
+              return;
+            }
+            else {
+              
+              
+              
+            }
+          }
+          */
           break; /* CMC_ESTABLISHED */
         default:
           return;
       }
       
+      
     }
-    // TODO: got back into initial states, after timeout 
+    // TODO: go back into initial states, after timeout 
     // (right now, only the senders go back)
+    
+    return;
   }
   
   
@@ -689,13 +725,14 @@ module CMCP {
              *  or if you are the sender of the packet */
             if (!(IS_SERVER) && packet->dst_id != 0xff) {
               
-              sock->retry_counter = 0;
-              sock->retry_timer = CMC_RETRY_TIME;
-              
               if (ack_data(sock) != SUCCESS) {
                 DBG("error while acking packet\n");
                 return msg;
               }
+              
+              sock->retry_counter = 0;
+              sock->retry_timer = CMC_RETRY_TIME;
+              
             }
               
             return msg;
@@ -720,7 +757,10 @@ module CMCP {
             cmc_data_hdr_t* data;
             data = (cmc_data_hdr_t*)( (void*) packet + sizeof(cmc_hdr_t)) ;
             
-            // if packets datalength does not fit, it cant be the right packet
+            /* If packets datalength does not fit, 
+             * it cant be the right packet and we 
+             * can return right away.
+             */
             if (data->length != sock->last_msg_len) {
               DBG("got packet, but length did not match\n");
               return msg;
@@ -744,7 +784,8 @@ module CMCP {
             }
             
             
-            if (memcmp(&decrypted_data.data, &(sock->last_msg), sock->last_msg_len) != 0) {
+            if (memcmp(&decrypted_data.data, &(sock->last_msg), 
+              sock->last_msg_len) != 0) {
               DBG("this is not the packet we are looking for\n");
               return msg;
             }
@@ -769,7 +810,6 @@ module CMCP {
         break; /* CMC_DATA */
         
       case CMC_ACK:
-        // NOTE: untested
         // TODO: Check for correct destination and source ids?
         if (sock->com_state != CMC_ACKPENDING2) {
           DBG("rcvd ACK2, but not in condition\n");

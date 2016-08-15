@@ -188,6 +188,7 @@ module CMCExP {
   }
   
   event void CMC0.sendDone(error_t e) {
+    OUT("Send done was signaled\n");
     sending = FALSE;
   }
   
