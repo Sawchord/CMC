@@ -125,6 +125,10 @@ typedef struct cmc_sock_t {
   
 } cmc_sock_t;
 
+/* 
+ * This is a debug function,
+ * that needs to be removed at the end.
+ */
 void print_hex (void* data, uint16_t length) {
   int i = 0;
   
@@ -156,7 +160,7 @@ enum {
 
 
 
-/* cmc header type */
+/* The cmc header type */
 typedef nx_struct cmc_hdr_t {
   nx_uint16_t src_id;
   nx_uint16_t group_id;

@@ -76,7 +76,7 @@ module CMCP {
    */
   bool interface_busy = FALSE;
   
-  /* Sometime, a function needs to do something
+  /* Sometimes, a function needs to do something
    * after already sending something. If this requires
    * sending, it can not be done directly, since the
    * interface is still busy. This bool is set, to
@@ -93,14 +93,14 @@ module CMCP {
   /* Holds the message type, of the last send msg. */
   uint8_t last_send_msg_type;
   
-  /* holds all sockets to cmc servers in an array */
+  /* Holds all sockets to cmc servers in an array */
   cmc_sock_t socks[N_SOCKS];
   
   
   /* --------- helpful functions ---------- */
   
   
-  /* sends out a sync message */
+  /* Sends out a sync message */
   error_t send_sync(cmc_sock_t* sock, Point* pub_key) {
     
     uint8_t packet_size;
@@ -112,20 +112,22 @@ module CMCP {
       return FAIL;
     }
     
-    // calculate the packet size
+    // Calculate the packet size
     packet_size = sizeof(cmc_hdr_t) + sizeof(cmc_sync_hdr_t);
     
-    // set up the packet
+    // Set up the packet
     packet_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, packet_size));
     
-    // calculate the sunc_header pointer by offsetting
-    sync_hdr = (cmc_sync_hdr_t*) ( (void*) packet_hdr + sizeof(cmc_hdr_t));
+    // Calculate the sync_header pointer by offsetting
+    sync_hdr = (cmc_sync_hdr_t*) ( (void*) packet_hdr + sizeof(cmc_hdr_t) );
     
-    // fill the packet with stuff
+    // Fill the packet with stuff
     packet_hdr->src_id = sock->local_id;
     packet_hdr->dst_id = 0xff; // since the servers id is unknown of now
     packet_hdr->group_id = sock->group_id;
     
+    // NOTE: If you leave this out, it still works, but it should not
+    packet_hdr->type = CMC_SYNC;
     
     // fill in the public key of the server
     call ECC.point2octet((uint8_t*) &(sync_hdr->public_key), 
@@ -140,7 +142,7 @@ module CMCP {
     
   }
   
-  /* simple sha1 hash of a message */
+  /* Generates a simple sha1 hash of a message */
   error_t sha1_hash(void* output, void* input, uint16_t input_len) {
     SHA1Context ctx;
     error_t err;
@@ -183,12 +185,13 @@ module CMCP {
       DBG("socket not in condition to send\n");
       return FAIL;
     }
+    
     if (data_len + pad_bytes > CMC_DATAFIELD_SIZE) {
       DBG("data too long\n");
       return FAIL;
     }
     
-    // calculate sized
+    // calculate size
     //              group_id          sha1 hash size  data        padding
     payload_size = sizeof(uint16_t) + CMC_HASHSIZE + data_len + pad_bytes;
     //            header               encrypted data  data length field
@@ -221,7 +224,12 @@ module CMCP {
     
     data_header->length = data_len;
     
-    // this is sooo ugly, needs some refactoring
+    /* 
+     * Encrypt the data.
+     * The blockchipher encryption must be called multiple
+     * times, since it does not have its own loop.
+     * This results in this ugly pointer arithmatic.
+     */
     for (i = 0; i < payload_size; i += CMC_CC_BLOCKSIZE) {
       if (call BlockCipher.encrypt(&(sock->master_key), 
         ((uint8_t*) &clear_data) + i, ((uint8_t*) &(data_header->enc_data)) + i ) 
@@ -378,7 +386,7 @@ module CMCP {
     cmc_sock_t* sock;
     uint8_t i;
     
-    // update the retry_timer of all sockets
+    // Update the retry_timer of all sockets
     for (i = 0; i < N_SOCKS; i++) {
       sock = &socks[i];
       if (( ((int32_t) sock->retry_timer ) - CMC_PROCESS_TIME) < 0) {
@@ -626,7 +634,6 @@ module CMCP {
           }
           
           // check, whether you are recipient
-          // FIXME: check, wether server is sender -- or done by auth check?
           if (packet->dst_id != sock->local_id) {
             DBG("updated cc, returning\n");
             return msg;
@@ -634,7 +641,7 @@ module CMCP {
           
           else {
             
-            /* this part of the code is only reached, if this node is receiver.
+            /* This part of the code is only reached, if this node is receiver.
              * send ack header to server, not necessary, if you are server
              *  or if you are the sender of the packet */
             if (!(IS_SERVER) && packet->dst_id != 0xff) {
@@ -732,6 +739,7 @@ module CMCP {
         
       case CMC_ACK:
         // NOTE: untested
+        // TODO: Check for correct destination and source ids?
         if (sock->com_state != CMC_ACKPENDING2) {
           DBG("rcvd ACK2, but not in condition\n");
           return msg;
@@ -813,6 +821,8 @@ module CMCP {
     
     // set the client specific fields to self
     sock->server_id = sock->local_id;
+    
+    // TODO: Better set server_public_key to client_private_key??
     sock->server_public_key = NULL;
     
     DBG("setting socket to LISTEN and ESTABLISHED\n");
@@ -895,7 +905,7 @@ module CMCP {
     err = send_data(sock);
     if (err == SUCCESS) {
       if (IS_SERVER) {
-        DBG("setting COM_STATE to ACKPENDING2, cause server\n");
+        DBG("setting COM_STATE to ACKPENDING2, because this is a server\n");
         sock->com_state = CMC_ACKPENDING2;
       }
       else {
@@ -904,9 +914,9 @@ module CMCP {
       }
     }
     
-    // set the retry timer, must be done after first attempt
-    // or timer could tick, before data was send;
-    
+    /* Set the retry timer, must be done after first attempt
+     * or timer could tick, before data was send;
+     */
     sock->retry_counter = 0;
     sock->retry_timer = CMC_RETRY_TIME;
     

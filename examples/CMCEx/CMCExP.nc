@@ -77,7 +77,6 @@ module CMCExP {
   
   event void Boot.booted() {
     oldtime = call LocalTime.get();
-    // start the radio
     
     // start radio (must be done manually)
     call RadioControl.start();
