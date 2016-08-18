@@ -10,5 +10,10 @@ typedef nx_struct SensorMsg {
     nx_uint8_t lum;
 } SensorMsg;
 
+typedef nx_struct LedMsg {
+  nx_uint16_t nodeid;
+  nx_uint8_t bitmask;
+} LedMsg;
+
 
 #endif /* CMC_TEST_H */

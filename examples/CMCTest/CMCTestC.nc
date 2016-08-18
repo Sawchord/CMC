@@ -59,6 +59,9 @@ configuration CMCTestC {
   CMCTestP.ECIES -> ECIESC;
   
   
+  components RandomC;
+  CMCTestP.Random -> RandomC;
+  
   components SHA1M;
   CMCTestP.SHA1 -> SHA1M.SHA1;
 }
