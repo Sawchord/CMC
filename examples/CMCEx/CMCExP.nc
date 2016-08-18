@@ -30,7 +30,7 @@
 
 /* debug output */
 //#ifdef DEBUG_OUT
-#if(1)
+#if(0)
 #include <printf.h>
 #define OUT(...) printf(__VA_ARGS__); printfflush()
 #else
@@ -103,12 +103,6 @@ module CMCExP {
     newtime = call LocalTime.get();
     OUT("Radio is up after %d ms\n", (newtime - oldtime));
     
-    /*oldtime = newtime;
-    sha1_hash(&hash_output, &teststr, 4);
-    newtime = call LocalTime.get();
-    OUT("hashtest took %d ms and result:", (newtime - oldtime));
-    print_hex(&hash_output, 20);
-    */
     
     // after the radio is up
     //initialze the local key, which is needed for the Client init
@@ -120,16 +114,6 @@ module CMCExP {
     call ECC.gen_public_key(&client_pub_key, client_priv_key);
     call ECC.gen_public_key(&server_pub_key, server_priv_key);
     
-    /*
-    OUT("client priv key:");
-    print_hex((uint8_t*)client_priv_key, NUMWORDS);
-    OUT("client pub key:");
-    print_hex((uint8_t*)&client_pub_key, 42);
-    OUT("server priv key:");
-    print_hex((uint8_t*)server_priv_key, NUMWORDS);
-    OUT("server pub key:");
-    print_hex((uint8_t*)&server_pub_key, 42);
-    */
     
     if (TOS_NODE_ID == 1) {
       call CMC0.init(TOS_NODE_ID, server_priv_key, &server_pub_key);
@@ -163,7 +147,6 @@ module CMCExP {
       if (call CMC0.connect(1337, &server_pub_key) != SUCCESS) {
         OUT("send attempt failed\n");
       }
-      //connected = TRUE;
     }
     
     if (TOS_NODE_ID != 1 && connected == TRUE && sending == FALSE) {

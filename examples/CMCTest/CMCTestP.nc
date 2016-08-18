@@ -108,9 +108,7 @@ module CMCTestP {
     
     uint8_t i;
     
-    OUT("NN_DIGIT: %d\n", sizeof(NN_DIGIT));
-    
-    for (i = 0; i < NUMWORDS; i++) {
+    for (i = 0; i < NUMWORDS-1; i++) {
       uint8_t first_digit, second_digit;
       
       first_digit = in[3*i];
@@ -118,22 +116,22 @@ module CMCTestP {
       
       // parse the first digit
       if (first_digit >= 0x30 && first_digit <= 0x39)
-        out[i] = (first_digit - 0x30) << 4;
+        out[i] = ((first_digit - 0x30) << 4);
       else if (first_digit >= 0x61 && first_digit <= 0x66)
-        out[i] = (first_digit - 0x61) << 4;
+        out[i] = ((first_digit - 0x61 + 0xA) << 4);
       else {
-        OUT("Error while parsing first_digit hex to NN_DIGIT");
+        //OUT("Error while parsing first_digit hex to NN_DIGIT\n");
         return;
       }
       
       
       // parse the first digit
       if (second_digit >= 0x30 && second_digit <= 0x39)
-        out[i] = (second_digit - 0x30);
+        out[i] |= (second_digit - 0x30);
       else if (second_digit >= 0x61 && second_digit <= 0x66)
-        out[i] = (second_digit - 0x61);
+        out[i] |= (second_digit - 0x61 + 0xA);
       else {
-        OUT("Error while parsing second_digit hex to NN_DIGIT");
+        //OUT("Error while parsing second_digit hex to NN_DIGIT\n");
         return;
       }
       
@@ -146,16 +144,15 @@ module CMCTestP {
   
   event void RadioControl.startDone(error_t e) {
     
-    //char hash_output[20];
     
     if (e != SUCCESS) {
-      OUT("error starting radio... retry\n");
+      OUT("error starting radio retry\n");
       call RadioControl.start();
       return;
     }
     
     newtime = call LocalTime.get();
-    OUT("Radio is up after %d ms\n", (newtime - oldtime));
+    OUT("Radio up after %d ms\n", (newtime - oldtime));
     oldtime = newtime;
     
     
@@ -182,7 +179,7 @@ module CMCTestP {
     }
     
     newtime = call LocalTime.get();
-    OUT("Socket initialized after %d ms\n", (newtime - oldtime));
+    OUT("Socket init after %d ms\n", (newtime - oldtime));
     
   }
   
@@ -194,7 +191,7 @@ module CMCTestP {
     
     if (e == SUCCESS) {
       newtime = call LocalTime.get();
-      OUT("sync was successfull after %d ms\n", (newtime - oldtime));
+      OUT("sync successfull after %d ms\n", (newtime - oldtime));
       oldtime = newtime;
       connected = TRUE;
     }
@@ -204,7 +201,7 @@ module CMCTestP {
   }
   
   event void CMC0.sendDone(error_t e) {
-    OUT("Send done was signaled\n");
+    OUT("Send done signaled\n");
     sending = FALSE;
   }
   
@@ -295,7 +292,7 @@ module CMCTestP {
     // If still in sending, sending not needed.
     if (sending == TRUE) return;
     
-    if (call Random.rand16() >> 15) {
+    if ((call Random.rand16() >> 15)) {
       LedMsg msg;
       
       msg.nodeid = TOS_NODE_ID;

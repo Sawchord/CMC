@@ -294,7 +294,6 @@ module CMCP {
     last_busy_sock = sock;
     last_send_msg_type = CMC_ACK;
     
-    // FIXME: this packet seems faulty
     if (call AMSend.send(AM_BROADCAST_ADDR, &pkt, ack_size) != SUCCESS) {
       DBG("error while sending ack");
       return FAIL;
@@ -432,8 +431,8 @@ module CMCP {
          * The following creates a switch falltrough,
          * but only, if the node is a server.
          */
-        case CMC_ACKPENDING2:
-          if (!IS_SERVER) break;
+        //case CMC_ACKPENDING2:
+        //  if (!IS_SERVER) break;
         
         case CMC_ACKPENDING1:
           
@@ -523,6 +522,7 @@ module CMCP {
       case CMC_SYNC:
         if (IS_SERVER) {
           
+          
           // prepare pointers and metadata for the answer
           uint8_t crypt_err;
           uint8_t answer_size;
@@ -533,6 +533,7 @@ module CMCP {
           cmc_sync_hdr_t* sync_hdr = (cmc_sync_hdr_t*) 
             ( (void*) packet + sizeof(cmc_hdr_t) );
           
+          DBG("recv sync msg\n");
           
           answer_size = sizeof(cmc_hdr_t) + sizeof(cmc_key_hdr_t);
           
@@ -674,8 +675,8 @@ module CMCP {
           }
           if (memcmp(hash, decrypted_data.hash, CMC_HASHSIZE) != 0) {
             DBG("Hashes are not matching, integrity fail\n");
-            DBG("Received hash:");
-            print_hex(&(decrypted_data.hash), CMC_HASHSIZE);
+            //DBG("Received hash:");
+            //print_hex(&(decrypted_data.hash), CMC_HASHSIZE);
             
             DBG("Calculated hash:");
             print_hex(hash, CMC_HASHSIZE);
