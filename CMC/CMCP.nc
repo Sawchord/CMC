@@ -210,8 +210,8 @@ module CMCP {
       return FAIL;
     }
     
-    DBG("Calculated message hash:");
-    print_hex(&(clear_data.hash), CMC_HASHSIZE);
+    //DBG("Calculated message hash:");
+    //print_hex(&(clear_data.hash), CMC_HASHSIZE);
     
     // prepare the message to send
     message_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, message_size));
@@ -230,7 +230,7 @@ module CMCP {
      * Encrypt the data.
      * The blockchipher encryption must be called multiple
      * times, since it does not have its own loop.
-     * This results in this ugly pointer arithmatic.
+     * This results in this ugly pointer arithmetic.
      */
     for (i = 0; i < payload_size; i += CMC_CC_BLOCKSIZE) {
       if (call BlockCipher.encrypt(&(sock->master_key), 
@@ -678,8 +678,8 @@ module CMCP {
             //DBG("Received hash:");
             //print_hex(&(decrypted_data.hash), CMC_HASHSIZE);
             
-            DBG("Calculated hash:");
-            print_hex(hash, CMC_HASHSIZE);
+            //DBG("Calculated hash:");
+            //print_hex(hash, CMC_HASHSIZE);
             
             // revert key
             memcpy(&(sock->master_key), &old_master_key, sizeof(NN_DIGIT));
@@ -797,7 +797,7 @@ module CMCP {
               sock->com_state = CMC_ESTABLISHED;
             }
             else {
-              DBG("going to ACKPENDING2");
+              DBG("going to ACKPENDING2\n");
               sock->com_state = CMC_ACKPENDING2;
             }
           

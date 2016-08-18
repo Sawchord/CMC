@@ -57,8 +57,6 @@ module CMCTestP {
     
     interface SHA1;
     
-    interface Read<uint8_t> as LightRead;
-    interface Read<uint16_t> as TempRead;
     
   }
 } implementation {
@@ -71,12 +69,6 @@ module CMCTestP {
   bool connected = FALSE;
   bool connecting = FALSE;
   
-  
-  //SensorMsg send_msg;
-  //SensorMsg* recv_msg;
-  
-  
-  // Holds private and public keys
   NN_DIGIT private_key[NUMWORDS];
   Point public_key;
   
@@ -86,11 +78,6 @@ module CMCTestP {
   uint8_t key2[] = "53:f0:88:87:95:69:17:60:31:5f:a4:d4:63:23:bc:1e:f3:e9:31:3a";
   
   uint8_t* keylist[] = {key0, key1, key2};
-  
-  // Last reads from the sensors
-  uint8_t last_lum_read;
-  uint16_t last_temp_read;
-  
   
   event void Boot.booted() {
     oldtime = call LocalTime.get();
@@ -135,8 +122,6 @@ module CMCTestP {
         return;
       }
       
-      
-      
     }
     return;
   }
@@ -175,7 +160,7 @@ module CMCTestP {
     
     // The other nodes start their main operation
     if (TOS_NODE_ID != 1) {
-      call Timer.startPeriodic(1000);
+      call Timer.startPeriodic(2000);
     }
     
     newtime = call LocalTime.get();
@@ -212,21 +197,10 @@ module CMCTestP {
   event void CMC0.recv(void* payload, uint16_t plen) {
     
     if (TOS_NODE_ID == 1) {
-      // This is the server printing the data
-      if (plen != sizeof(SensorMsg)) {
-        OUT("Recvs msgs, with non fitting length");
-        return;
-      }
-      else {
-        SensorMsg* data;
-        
-        data = (SensorMsg*) payload;
-        
-        OUT("Status of node:%d: Temp:%d, Lum:%d\n", data->nodeid, data->temp, data->lum);
-        return;
-      }
+      OUT("This should never happen\n");
       return;
     }
+    
     else if (TOS_NODE_ID == 2) {
       
       if (plen != sizeof(LedMsg)) {
@@ -278,6 +252,8 @@ module CMCTestP {
   
   event void Timer.fired() {
     
+    LedMsg msg;
+    
     if (connected == FALSE && connecting == FALSE) {
       if (call CMC0.connect(1234, &public_key) != SUCCESS) {
         OUT("Error while connecting");
@@ -286,67 +262,28 @@ module CMCTestP {
       return;  
     }
     
-    // If node is currently coneecting, need to wait.
-    if (connecting = TRUE) return;
+    // If node is currently connecting, need to wait.
+    if (connecting == TRUE) return;
     
     // If still in sending, sending not needed.
     if (sending == TRUE) return;
     
-    if ((call Random.rand16() >> 15)) {
-      LedMsg msg;
-      
-      msg.nodeid = TOS_NODE_ID;
-      msg.bitmask = 0x0;
-      
-      if(call CMC0.send(2, &msg, sizeof(msg)) != SUCCESS) {
-        OUT("Error while sending LedMsg\n");
-      }
-      
-      sending = TRUE;
+    if (TOS_NODE_ID == 2) {
+      call Timer.stop();
       return;
     }
     
-    // Start the sensor reading process
-    if (call LightRead.read() != SUCCESS) {
-      OUT("Error while calling Light read\n");
+    OUT("Asking for bitmask\n");
+    
+    msg.nodeid = TOS_NODE_ID;
+    msg.bitmask = 0x0;
+    
+    if(call CMC0.send(2, &msg, sizeof(msg)) != SUCCESS) {
+      OUT("Error while sending LedMsg\n");
     }
+    
+    sending = TRUE;
     return;
-  }
-  
-  
-  event void LightRead.readDone(error_t err, uint8_t lum) {
-    
-    if (err != SUCCESS) {
-      OUT("Error in Light read done\n");
-    }
-    else {
-      last_lum_read = lum;
-      if (call TempRead.read() != SUCCESS) {
-        OUT("Error while calling Temp read\n");
-      }
-    }
-    return;
-    
-  }
-  
-  event void TempRead.readDone(error_t err, uint16_t temp) {
-    
-    if (err != SUCCESS) {
-      OUT("Error in Temp read done\n");
-    }
-    else {
-      SensorMsg msg;
-      last_temp_read = temp;
-      
-      msg.nodeid = TOS_NODE_ID;
-      msg.temp = last_temp_read;
-      msg.lum = last_lum_read;
-      
-      if(call CMC0.send(1, &msg, sizeof(msg)) != SUCCESS) {
-        OUT("Error while sending\n");
-      }
-      sending = TRUE;
-    }
     
   }
   

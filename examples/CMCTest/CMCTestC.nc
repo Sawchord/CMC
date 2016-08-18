@@ -43,12 +43,6 @@ configuration CMCTestC {
   components new CMCSocket() as CMC0;
   CMCTestP.CMC0 -> CMC0;
   
-  components new SensirionSht11C() as TempSensor0;
-  CMCTestP.TempRead -> TempSensor0.Temperature;
-  
-  components new Taos2550C() as LightSensor0;
-  CMCTestP.LightRead -> LightSensor0.VisibleLight;
-  
   components SerialStartC;
   components PrintfC;
   

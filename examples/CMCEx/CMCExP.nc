@@ -30,7 +30,7 @@
 
 /* debug output */
 //#ifdef DEBUG_OUT
-#if(0)
+#if(1)
 #include <printf.h>
 #define OUT(...) printf(__VA_ARGS__); printfflush()
 #else
