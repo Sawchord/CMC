@@ -152,7 +152,6 @@ module CMCP {
   }
   
   
-  
   error_t send_data(cmc_sock_t* sock) {
     
     cmc_hdr_t* message_hdr;
@@ -180,7 +179,6 @@ module CMCP {
     DBG("data_len:%d pad_bytes:%d\n", data_len, pad_bytes);
     
     // check for the right conditions to send
-    //if ( !(sock->com_state == CMC_ESTABLISHED || sock->com_state == CMC_ACKPENDING1) ) {
     if ( !(sock->com_state == CMC_ESTABLISHED || sock->com_state == CMC_ACKPENDING) ) {
       DBG("socket not in condition to send\n");
       return FAIL;
@@ -226,12 +224,10 @@ module CMCP {
     
     data_header->length = data_len;
     
-    /* 
-     * Encrypt the data.
-     * The blockchipher encryption must be called multiple
-     * times, since it does not have its own loop.
-     * This results in this ugly pointer arithmetic.
-     */
+    // Encrypt the data.
+    // The blockchipher encryption must be called multiple
+    // times, since it does not have its own loop.
+    // This results in this ugly pointer arithmetic.
     for (i = 0; i < payload_size; i += CMC_CC_BLOCKSIZE) {
       if (call BlockCipher.encrypt(&(sock->master_key), 
         ((uint8_t*) &clear_data) + i, ((uint8_t*) &(data_header->enc_data)) + i ) 
@@ -246,7 +242,6 @@ module CMCP {
     last_busy_sock = sock;
     last_send_msg_type = CMC_DATA;
     
-    //DBG("send_data: %s\n", sock->last_msg);
     DBG("send_data\n");
     if  (call AMSend.send(AM_BROADCAST_ADDR, &pkt, message_size) != SUCCESS) {
       DBG("error sending data\n");
@@ -258,53 +253,8 @@ module CMCP {
   } /* send_data */
   
   
-  /*
-  error_t ack_data(cmc_sock_t* sock) {
-    // NOTE: untested
-    cmc_hdr_t* ack_header;
-    cmc_ack_hdr_t* ack_field;
-    
-    uint8_t ack_size;
-    
-    if (interface_busy == TRUE) {
-      DBG("ack_data failed, busy interface\n");
-      return FAIL;
-    }
-    
-    ack_size = sizeof(cmc_hdr_t) + sizeof(cmc_ack_hdr_t);
-    ack_header = (cmc_hdr_t*)(call Packet.getPayload(&pkt, ack_size));
-    ack_field = (cmc_ack_hdr_t*)( (void*) ack_header + sizeof(cmc_hdr_t));
-    
-    ack_header->src_id = sock->local_id;
-    ack_header->group_id = sock->group_id;
-    ack_header->dst_id = sock->last_dst;
-    ack_header->type = CMC_ACK;
-    
-    if (sha1_hash(ack_field, &(sock->last_msg), sock->last_msg_len) != SUCCESS) {
-      DBG("hashing error in ack\n");
-      return FAIL;
-    }
-    
-    //DBG("calculated hash:");
-    //print_hex(ack_field->hash, CMC_HASHSIZE);
-    
-    interface_busy = TRUE;
-    interface_callback = TRUE;
-    last_busy_sock = sock;
-    last_send_msg_type = CMC_ACK;
-    
-    if (call AMSend.send(AM_BROADCAST_ADDR, &pkt, ack_size) != SUCCESS) {
-      DBG("error while sending ack");
-      return FAIL;
-    }
-    
-    DBG("acked data\n");
-    return SUCCESS;
-  }
-  */
-  
   /* --------- implemented events --------- */
-  /* startup initialization */
+  // startup initialization 
   command error_t Init.init() {
     uint8_t i;
     
@@ -364,22 +314,12 @@ module CMCP {
           (&(sock->last_msg), sock->last_msg_len, sock->last_dst);
         
         break; /* CMC_DATA */
-        
-      /*case CMC_ACK:
-        
-        DBG("signal user the message\n");
-        signal CMC.recv[last_busy_sock_num]
-          (&(sock->last_msg), sock->last_msg_len);
-        
-        break;*/ /* CMC_ACK */
       
       default:
         DBG("sendDone risen without last_send_msg_type set -> bug");
         break;
       
-      
     }
-    
   }
   
   
@@ -451,29 +391,10 @@ module CMCP {
           
           break; /* CMC_ACKPENDING */
         
-        
          /* This part handles the resending of the ACK packet
           * on the receiving node.
           */
         case CMC_ESTABLISHED:
-          // NOTE:This part is most likely not needed
-          /*
-          if (sock->retry_timer == 0) {
-            if (sock->retry_counter < CMC_N_RETRIES) {
-              
-              sock->retry_counter++;
-              sock->retry_timer = CMC_RETRY_TIME;
-              DBG("");
-              
-              return;
-            }
-            else {
-              
-              
-              
-            }
-          }
-          */
           break; /* CMC_ESTABLISHED */
         default:
           return;
@@ -481,9 +402,6 @@ module CMCP {
       
       
     }
-    // TODO: go back into initial states, after timeout 
-    // (right now, only the senders go back)
-    
     return;
   }
   
@@ -550,11 +468,6 @@ module CMCP {
             61+CMC_CC_SIZE, (uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
             &remote_public_key);
           
-          /*if (crypt_err != SUCCESS) {
-            DBG("Crypt err in key send\n");
-            return msg;
-          }*/
-          
           interface_busy = TRUE;
           last_busy_sock = sock;
           last_send_msg_type = CMC_KEY;
@@ -563,7 +476,7 @@ module CMCP {
           DBG("send key data\n");
           call AMSend.send(AM_BROADCAST_ADDR, &pkt, answer_size);
           
-          // NOTE: No retry timers set. If key msg is lost, node will resend sync message.
+          // NOTE: No retry timers to set. If key msg is lost, node will resend sync message.
           
           signal CMC.connected[i](SUCCESS, packet->src_id);
           
@@ -593,19 +506,9 @@ module CMCP {
           cmc_key_hdr_t* key_hdr;
           key_hdr = (cmc_key_hdr_t*) ( (void*) packet + sizeof(cmc_hdr_t) );
           
-          // set the server id, which is known by now
-          //sock->server_id = packet->src_id;
-          
-          // NOTE: Server id is now 0 by default.
-          
           // decrypt and set the masterkey
           crypt_err = call ECIES.decrypt((uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
             (uint8_t*) key_hdr, 61+CMC_CC_SIZE, (sock->private_key));
-          
-          /*if (crypt_err != SUCCESS) {
-            DBG("Crypt err while pricessing key msg\n");
-            return msg;
-          }*/
           
           DBG("server connect success, got masterkey:");
           print_hex((uint8_t*) &(sock->master_key), 16);
@@ -753,62 +656,8 @@ module CMCP {
             return msg;
           }
           
-          /*if (IS_SERVER) {
-            
-            // first try to resend data, step 2 of protocoll
-            interface_callback = TRUE;
-            if (send_data(sock) != SUCCESS) {
-              DBG("error while resending packet as server\n");
-              interface_callback = FALSE;
-              return msg;
-            }
-            
-            // server must go to ACKP2, if not unicast, and server is not destination
-            if (packet->dst_id != sock->local_id && packet->dst_id != 0xff) {
-              sock->com_state = CMC_ACKPENDING2;
-            }
-            
-            // set the retry timer
-            sock->retry_counter = 0;
-            sock->retry_timer = CMC_RETRY_TIME;
-            
-          }
-          
-          // check, whether you are recipient
-          if (packet->dst_id != sock->local_id) {
-            DBG("updated cc, returning\n");
-            return msg;
-          }
-          
-          else {
-            
-            // This part of the code is only reached, if this node is receiver.
-            // send ack header to server, not necessary, if you are server
-            //  or if you are the sender of the packet 
-            if (!(IS_SERVER) && packet->dst_id != 0xff) {
-              
-              if (ack_data(sock) != SUCCESS) {
-                DBG("error while acking packet\n");
-                return msg;
-              }
-              
-              sock->retry_counter = 0;
-              sock->retry_timer = CMC_RETRY_TIME;
-              
-            }
-              
-            return msg;
-          }*/
-          
         }
-        //else if (sock->com_state == CMC_ACKPENDING1) {
         else if (sock->com_state == CMC_ACKPENDING) {
-        
-          /*if (IS_SERVER) {
-            DBG("ACKPENDING1 in server should never happen\n");
-            return msg;
-          }
-          else {*/
           
           //check, whether this is a matching packet resend
           cmc_clear_data_hdr_t decrypted_data;
@@ -820,10 +669,9 @@ module CMCP {
           cmc_data_hdr_t* data;
           data = (cmc_data_hdr_t*)( (void*) packet + sizeof(cmc_hdr_t)) ;
           
-          /* If packets datalength does not fit, 
-            * it cant be the right packet and we 
-            * can return right away.
-            */
+          // If packets datalength does not fit, 
+          // it cant be the right packet and we 
+          // can return right away.
           if (data->length != sock->last_msg_len) {
             DBG("got packet, but length did not match\n");
             return msg;
@@ -853,20 +701,9 @@ module CMCP {
             return msg;
           }
           
-          /*DBG("this node got an ACK1\n");
-          if (sock->last_dst == sock->server_id) {
-            DBG("dst was server, going to ESTABLISHED\n");
-            sock->com_state = CMC_ESTABLISHED;
-          }
-          else {
-            DBG("going to ACKPENDING2\n");
-            sock->com_state = CMC_ACKPENDING2;
-          }*/
-          
           DBG("Got acked, going to ESTABLISHED\n");
           sock->com_state = CMC_ESTABLISHED;
           
-          //}
         }
         else {
             DBG("socket was not in condition to receive data\n");
@@ -874,42 +711,6 @@ module CMCP {
         }
         
         break; /* CMC_DATA */
-        
-      /*case CMC_ACK:
-        // TODO: Check for correct destination and source ids?
-        if (sock->com_state != CMC_ACKPENDING2) {
-          DBG("rcvd ACK2, but not in condition\n");
-          return msg;
-        }
-        else {
-          
-          uint8_t hash[CMC_HASHSIZE];
-          cmc_ack_hdr_t* ack_header;
-          
-          ack_header = (cmc_ack_hdr_t*)( (void*) packet + sizeof(cmc_hdr_t));
-          
-          if (sha1_hash(hash, &(sock->last_msg), sock->last_msg_len) != SUCCESS) {
-            DBG("hashing error in ack2\n");
-          return msg;
-          }
-          
-          //DBG("hash comparison:");
-          //print_hex(hash, CMC_HASHSIZE);
-          //print_hex(ack_header->hash, CMC_HASHSIZE);
-          
-          if (memcmp(hash, &(ack_header->hash), CMC_HASHSIZE) !=0) {
-            DBG("got ack, but hash was incorrect > ignored\n");
-            return msg;
-          }
-          else {
-            DBG("last message was acked, going to ESTABLISHED\n");
-            sock->com_state = CMC_ESTABLISHED;
-            return msg;
-          }
-          
-        }
-        
-        break;*/ /* CMC_ACK */
       
       default:
         DBG("header type %d was not recognized or implemented\n", packet->type);
@@ -958,11 +759,6 @@ module CMCP {
     
     sock->group_id = group_id;
     
-    // set the client specific fields to self
-    //sock->server_id = sock->local_id;
-    
-    //sock->server_public_key = NULL;
-    
     DBG("setting socket to LISTEN and ESTABLISHED\n");
     sock->sync_state = CMC_LISTEN;
     sock->com_state = CMC_ESTABLISHED;
@@ -985,9 +781,6 @@ module CMCP {
   
   
   
-  //command error_t CMC.connect[uint8_t client](uint16_t group_id,
-    //Point* remote_public_key) {
-  
   command error_t CMC.connect[uint8_t client](uint16_t group_id) {
     cmc_sock_t* sock = &socks[client];
     
@@ -999,7 +792,6 @@ module CMCP {
     }
     
     // set the socket values
-    //sock->server_public_key = remote_public_key;
     sock->group_id = group_id;
     
     DBG("setting socket to PRECONNECTION\n");
@@ -1055,19 +847,10 @@ module CMCP {
       DBG("setting COM_STATE to ACKPENDING\n");
       sock->com_state = CMC_ACKPENDING;
       
-      /*if (IS_SERVER) {
-        DBG("setting COM_STATE to ACKPENDING2, because this is a server\n");
-        sock->com_state = CMC_ACKPENDING2;
-      }
-      else {
-        DBG("setting COM_STATE to ACKPENDING1\n");
-        sock->com_state = CMC_ACKPENDING1;
-      }*/
     }
     
-    /* Set the retry timer, must be done after first attempt
-     * or timer could tick, before data was send;
-     */
+    // Set the retry timer, must be done after first attempt
+    // or timer could tick, before data was send;
     sock->retry_counter = 0;
     sock->retry_timer = CMC_RETRY_TIME;
     
@@ -1075,17 +858,10 @@ module CMCP {
   }
   
   
-  /*command error_t CMC.close[uint8_t client]() {
-    
-  }*/
-  
-  
   /* --------- default events -------- */
   default event void CMC.connected[uint8_t cid](error_t e, uint16_t nodeid) {}
   
   default event void CMC.sendDone[uint8_t cid](error_t e) {}
-  
-  //default event void CMC.closed[uint8_t cid](uint16_t remote_id, error_t e) {}
   
   default event void CMC.recv[uint8_t cid](void* payload, uint16_t plen, uint16_t nodeid) {}
 }

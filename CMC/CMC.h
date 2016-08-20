@@ -98,9 +98,6 @@ typedef struct cmc_sock_t {
   /* the group id, which the nodes use to identify this group */
   uint16_t group_id;
   
-  /* the id of the server must be know by every node */
-  //uint16_t server_id;
-  
   /* buffer, for message construction */
   uint8_t last_dst;
   uint8_t last_msg[CMC_DATAFIELD_SIZE];
@@ -111,13 +108,8 @@ typedef struct cmc_sock_t {
   NN_DIGIT* private_key;
   Point* public_key;
   
-  /* the clients need to know the servers public key */
-  //Point* server_public_key;
-  
   /* The AES key context, the shared secret between the nodes */
   CipherContext master_key;
-  
-  // TODO: key whitelist to be compiled into code
   
   uint8_t retry_counter;
   uint16_t retry_timer;
@@ -145,8 +137,6 @@ enum {
   CMC_LISTEN,
   CMC_ESTABLISHED,
   CMC_ACKPENDING,
-  //CMC_ACKPENDING1,
-  //CMC_ACKPENDING2,
 };
 
 
@@ -154,7 +144,6 @@ enum {
 enum {
   CMC_SYNC = 0x0,
   CMC_KEY,
-  //CMC_ACK,
   CMC_DATA,
 };
 
@@ -170,27 +159,18 @@ typedef nx_struct cmc_hdr_t {
 
 
 /* ---------cmc header expansions------------ */
-/* message header */
-/*typedef nx_struct cmc_message_t {
-  nx_uint8_t body[CMC_MAX_MSG_LENGTH];
-} cmc_message_t;*/
-
 
 /* sync header */
 typedef nx_struct cmc_sync_hdr_t {
   nx_uint8_t public_key[CMC_POINT_SIZE];
 } cmc_sync_hdr_t;
 
-/* and error header */
-/*typedef nx_struct cmc_err_hdr_t {
-  nx_uint16_t message;
-} cmc_ferr_hdr_t;*/
-
 
 typedef nx_struct cmc_key_hdr_t {
   // and ECIES encrypted message is 61 byte longer than its cleantext
   nx_uint8_t encrypted_context[61 + CMC_CC_SIZE];
 } cmc_key_hdr_t;
+
 
 typedef nx_struct cmc_clear_data_hdr_t {
   nx_uint16_t group_id;
@@ -200,6 +180,7 @@ typedef nx_struct cmc_clear_data_hdr_t {
   nx_uint8_t data[CMC_DATAFIELD_SIZE];
 } cmc_clear_data_hdr_t;
 
+
 typedef nx_struct cmc_data_hdr_t {
   nx_uint16_t length;
   nx_union {
@@ -207,9 +188,5 @@ typedef nx_struct cmc_data_hdr_t {
     nx_uint8_t enc_data[sizeof (cmc_clear_data_hdr_t)];
   };
 } cmc_data_hdr_t;
-
-/*typedef nx_struct cmc_ack_hdr_t {
-  nx_uint8_t hash[CMC_HASHSIZE];
-} cmc_ack_hdr_t;*/
 
 #endif /* CMC_H */
