@@ -144,7 +144,8 @@ module CMCExP {
       OUT("attempt sync\n");
       oldtime = call LocalTime.get();
       connecting = TRUE;
-      if (call CMC0.connect(1337, &server_pub_key) != SUCCESS) {
+      //if (call CMC0.connect(1337, &server_pub_key) != SUCCESS) {
+      if (call CMC0.connect(1337) != SUCCESS) {
         OUT("send attempt failed\n");
       }
     }
@@ -158,11 +159,11 @@ module CMCExP {
   }
   
   
-  event void CMC0.connected(error_t e) {
+  event void CMC0.connected(error_t e, uint16_t nodeid) {
     connecting = FALSE;
     if (e == SUCCESS) {
       newtime = call LocalTime.get();
-      OUT("sync was successfull after %d ms\n", (newtime - oldtime));
+      OUT("sync with %d was successfull after %d ms\n",nodeid ,(newtime - oldtime));
       connected = TRUE;
     }
     else {
@@ -171,17 +172,25 @@ module CMCExP {
   }
   
   event void CMC0.sendDone(error_t e) {
-    OUT("Send done was signaled\n");
+    
+    if (e != SUCCESS) {
+      OUT("Sending has failed, reconnecting\n");
+      sending = FALSE;
+      connected = FALSE;
+      return;
+    }
+    
+    OUT("Send done was successfull\n");
     sending = FALSE;
   }
   
-  event void CMC0.closed(uint16_t remote_id, error_t e){
+  /*event void CMC0.closed(uint16_t remote_id, error_t e){
     
-  }
+  }*/
   
-  event void CMC0.recv(void* payload, uint16_t plen) {
+  event void CMC0.recv(void* payload, uint16_t plen, uint16_t nodeid) {
     // print received messages
-    OUT("received string of length %d:\n", plen);
+    OUT("received string of length %d from %d\n", plen, nodeid);
     OUT("%s", payload);
     
     // if server, answer

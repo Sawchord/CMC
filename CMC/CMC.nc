@@ -36,17 +36,18 @@ interface CMC {
   command error_t bind(uint16_t group_id);
   
   /* connects this socket to the server */
-  command error_t connect(uint16_t group_id, Point* remote_public_key);
+  //command error_t connect(uint16_t group_id, Point* remote_public_key);
+  command error_t connect(uint16_t group_id);
   
   /* send data over the cannel */
   command error_t send(uint16_t dest_id, void* data, uint8_t data_len);
   
   /* terminates the connection*/
-  command error_t close();
+  //command error_t close();
   
   
   /* Signaled, whenever a node has connected or failed to connect this server */
-  event void connected(error_t e);
+  event void connected(error_t e, uint16_t nodeid);
   
   /* Signaled after packet was sent successfully or sent failed.
    * Also indicates, that the cannel is ready to send further data */
@@ -54,9 +55,9 @@ interface CMC {
   
   /* Signals, that the connection has be shut down succesfully.
    * Is also risen with FAIL, if connection is terminated unexpected*/
-  event void closed(uint16_t remote_id, error_t e);
+  //event void closed(uint16_t remote_id, error_t e);
   
   /* Signaled if data was received*/
-  event void recv(void* payload, uint16_t plen);
+  event void recv(void* payload, uint16_t plen, uint16_t nodeid);
   
 }
