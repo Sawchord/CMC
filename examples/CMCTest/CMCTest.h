@@ -7,6 +7,7 @@
 
 typedef nx_struct LedMsg {
   nx_uint16_t nodeid;
+  nx_uint16_t dst_id;
   nx_uint8_t bitmask;
 } LedMsg;
 

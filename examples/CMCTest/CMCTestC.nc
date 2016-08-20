@@ -34,8 +34,8 @@ configuration CMCTestC {
   components new TimerMilliC() as Timer;
   CMCTestP.Timer -> Timer;
   
-  components LocalTimeMilliC;
-  CMCTestP.LocalTime -> LocalTimeMilliC;
+  //components LocalTimeMilliC;
+  //CMCTestP.LocalTime -> LocalTimeMilliC;
   
   components ActiveMessageC;
   CMCTestP.RadioControl -> ActiveMessageC;

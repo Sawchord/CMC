@@ -47,7 +47,7 @@ module CMCTestP {
     interface Leds;
     
     interface Timer<TMilli>;
-    interface LocalTime<TMilli>;
+    //interface LocalTime<TMilli>;
     
     interface Random;
     
@@ -60,9 +60,6 @@ module CMCTestP {
     
   }
 } implementation {
-  
-  // Variables used for benchmar
-  uint32_t oldtime, newtime;
   
   // Control flow aid
   bool sending = FALSE;
@@ -80,7 +77,6 @@ module CMCTestP {
   uint8_t* keylist[] = {key0, key1, key2};
   
   event void Boot.booted() {
-    oldtime = call LocalTime.get();
     
     // Start the radio interface
     call RadioControl.start();
@@ -136,17 +132,11 @@ module CMCTestP {
       return;
     }
     
-    newtime = call LocalTime.get();
-    OUT("Radio up after %d ms\n", (newtime - oldtime));
-    oldtime = newtime;
-    
-    
-    //call ECC.gen_private_key(private_key);
+    OUT("Radio up\n");
     
     hex_to_key(private_key, keylist[TOS_NODE_ID-1]);
     OUT("This node has the private key:");
     print_hex(private_key, NUMWORDS);
-    
     
     call ECC.gen_public_key(&public_key, private_key);
     
@@ -158,104 +148,84 @@ module CMCTestP {
       call CMC0.bind(1234);
     }
     
-    // The other nodes start their main operation
+    // Node 3 is the bitmask generator
     if (TOS_NODE_ID != 1) {
       call Timer.startPeriodic(2000);
     }
-    
-    newtime = call LocalTime.get();
-    OUT("Socket init after %d ms\n", (newtime - oldtime));
     
   }
   
   event void RadioControl.stopDone(error_t e) {}
   
-  event void CMC0.connected(error_t e) {
+  event void CMC0.connected(error_t e, uint16_t nodeid) {
     
     connecting = FALSE;
     
     if (e == SUCCESS) {
-      newtime = call LocalTime.get();
-      OUT("sync successfull after %d ms\n", (newtime - oldtime));
-      oldtime = newtime;
+      OUT("Server has synced successfull with %d\n", nodeid);
       connected = TRUE;
     }
     else {
-      OUT("connection\n");
+      OUT("sync failed\n");
     }
   }
   
   event void CMC0.sendDone(error_t e) {
+    
+    if (e != SUCCESS) {
+      OUT("Sending has failed, need to reconnect\n");
+      connected = FALSE;
+      call Timer.startPeriodic(2000);
+      return;
+    }
+    
     OUT("Send done signaled\n");
     sending = FALSE;
   }
   
-  event void CMC0.closed(uint16_t remote_id, error_t e){
-    
-  }
   
-  event void CMC0.recv(void* payload, uint16_t plen) {
+  event void CMC0.recv(void* payload, uint16_t plen, uint16_t nodeid) {
     
-    if (TOS_NODE_ID == 1) {
-      OUT("This should never happen\n");
+    //LedMsg answer;
+    LedMsg* data;
+    
+    //if (plen != sizeof(LedMsg)) {
+    //  OUT("Recv msg, but len was not matching\n");
+    //  return;
+    //}
+    
+    data = (LedMsg*) payload;
+    
+    // The server needs to resend the stuffs
+    if (TOS_NODE_ID == 1 && data->dst_id != 1) {
+      
+      if (data->dst_id > 3) {
+        OUT("No fitting node in scope\n");
+        return;
+      }
+      
+      
+      if (call CMC0.send(data->dst_id, data, sizeof(LedMsg) != SUCCESS)) {
+         OUT("Server error while resending the data\n");
+      }
+      
       return;
     }
     
-    else if (TOS_NODE_ID == 2) {
-      
-      if (plen != sizeof(LedMsg)) {
-        OUT("Recvs msgs, but len was not matching\n");
-      }
-      else {
-        // This is, where node 2 assembles the answer for the led bitmask
-        
-        LedMsg answer;
-        LedMsg* data;
-        
-        uint8_t tbit;
-        
-        data = (LedMsg*) payload;
-        
-        tbit = call Random.rand16();
-        
-        OUT("Sending bitmask: %d to node %d\n", tbit, data->nodeid);
-        
-        answer.nodeid = TOS_NODE_ID;
-        answer.bitmask = tbit;
-        
-        call CMC0.send(data->nodeid, &answer, sizeof(answer));
-        sending = TRUE;
-        return;
-      }
-      
-    }
-    else {
-      
-      // This is where all other nodes receive their bitmask
-      if (plen != sizeof(LedMsg)) {
-        OUT("Recvds weirds message\n");
-        return;
-      }
-      else {
-        
-        LedMsg* data;
-        
-        data = (LedMsg*) payload;
-        if (data->nodeid == 2) {
-          call Leds.set(data->bitmask);
-        }
-        return;
-      }
-    }
+    OUT("Received bitmask %d from node %d \n", data->bitmask, data->nodeid);
+    
+    call Leds.set(data->bitmask);
+    
     return;
   }
   
   event void Timer.fired() {
     
     LedMsg msg;
+    uint8_t tbit;
     
     if (connected == FALSE && connecting == FALSE) {
-      if (call CMC0.connect(1234, &public_key) != SUCCESS) {
+      if (call CMC0.connect(1234) != SUCCESS) {
         OUT("Error while connecting");
       }
       connecting = TRUE;
@@ -268,17 +238,24 @@ module CMCTestP {
     // If still in sending, sending not needed.
     if (sending == TRUE) return;
     
-    if (TOS_NODE_ID == 2) {
+    // Only node 2 needs to keeps the timer fireing
+    if (TOS_NODE_ID != 2) {
       call Timer.stop();
       return;
     }
     
-    OUT("Asking for bitmask\n");
+    tbit = call Random.rand16();
     
     msg.nodeid = TOS_NODE_ID;
-    msg.bitmask = 0x0;
+    msg.dst_id = 0x02 & tbit;
     
-    if(call CMC0.send(2, &msg, sizeof(msg)) != SUCCESS) {
+    tbit = call Random.rand16();
+    
+    msg.bitmask = 0x04 & tbit;
+    
+    OUT("Sending bitmask %d to node %d\n", msg.bitmask, msg.dst_id);
+    
+    if(call CMC0.send(0, &msg, sizeof(LedMsg)) != SUCCESS) {
       OUT("Error while sending LedMsg\n");
     }
     

@@ -125,9 +125,9 @@ void print_hex (void* data, uint16_t length) {
   
   for (i = 0; i < length; i++) {
     if (i % 8 == 0) DBG("\n");
-    DBG("0x%02x ", ((uint8_t*)data)[i]);
+    printf("0x%02x ", ((uint8_t*)data)[i]);printfflush();
   }
-  DBG("\n");
+  DBG("\n");printfflush();
 }
 
 /* cmc socket states (for both server and client)*/

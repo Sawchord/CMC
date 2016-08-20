@@ -701,7 +701,7 @@ module CMCP {
             return msg;
           }
           
-          DBG("Got acked, going to ESTABLISHED\n");
+          DBG("Got acked, setting COM_STATE to ESTABLISHED\n");
           sock->com_state = CMC_ESTABLISHED;
           
         }
@@ -833,7 +833,8 @@ module CMCP {
       signal CMC.recv[client](data, data_len, sock->local_id);
     }
     
-    // copy needed info to socket, needed for resend to be possible
+    // copy all infor about send into socket,
+    // needed for resend to be possible
     sock->last_dst = dest_id;
     sock->last_msg_len = data_len;
     
