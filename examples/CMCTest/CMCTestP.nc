@@ -95,7 +95,7 @@ module CMCTestP {
     
     // Start the radio interface
     call RadioControl.start();
-    
+    return;
   }
   
   /*
@@ -171,9 +171,10 @@ module CMCTestP {
       call Timer.startPeriodic(5000);
     }
     
+    return;
   }
   
-  event void RadioControl.stopDone(error_t e) {}
+  event void RadioControl.stopDone(error_t e) {return;}
   
   event void CMC0.connected(error_t e, uint16_t nodeid) {
     
@@ -186,6 +187,8 @@ module CMCTestP {
     else {
       OUT("sync failed\n");
     }
+    
+    return;
   }
   
   event void CMC0.sendDone(error_t e) {
@@ -199,6 +202,8 @@ module CMCTestP {
     
     OUT("Send done signaled\n");
     sending = FALSE;
+    
+    return;
   }
   
   

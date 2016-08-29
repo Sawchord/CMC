@@ -410,7 +410,6 @@ module CMCP {
           return;
       }
       
-      
     }
     return;
   }
@@ -438,7 +437,9 @@ module CMCP {
       return msg;
     }
     
-    DBG("recv pkt for sock %d in state %d\n", i, socks[i].com_state);
+    //FIXME: There is a bug here, sometimes node crashes and restarts here
+    //DBG("sp at %p\n", &i);
+    DBG("recv pkt %d for sock %d in state %d\n", packet->type, i, socks[i].com_state);
     
     switch(packet->type) {
       case CMC_SYNC:

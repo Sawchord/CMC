@@ -78,6 +78,8 @@
 #define CMC_MAX_MSG_LENGTH 114
 #endif
 
+#define GET_SP *((uint16_t*) 0x1e)
+
 /* debug output definition*/
 #ifdef DEBUG_OUT
   #ifdef TOSSIM
@@ -85,11 +87,17 @@
     #define DBG(...) dbg("CMC", __VA_ARGS__);
   #else
     #include <printf.h>
+    //#define DBG(...) printf("(%04x): ", GET_SP); printf(__VA_ARGS__); printfflush()
     #define DBG(...) printf(__VA_ARGS__); printfflush()
   #endif
 #else
   #define DBG(...) 
 #endif
+
+uint16_t get_sp() {
+  uint16_t* sp = (uint16_t*) 0x1e;
+  return *sp;
+}
 
 /* the cmc server socket*/
 typedef struct cmc_sock_t {
