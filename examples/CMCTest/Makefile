@@ -6,13 +6,13 @@ PFLAGS += -DNEW_PRINTF_SEMANTICS
 
 # for the printf
 CFLAGS += -I$(TOSDIR)/lib/printf
-CFLAGS += -DPRINTF_BUFFER_SIZE=750
+CFLAGS += -DPRINTF_BUFFER_SIZE=500
 
 CFLAGS += -I$/../../CMC/TinyECC
 CFLAGS += -I$/../../CMC/crypto
 
 # Enable debug output
-CFLAGS += -DDEBUG_OUT
+#CFLAGS += -DDEBUG_OUT
 
 ##choose curve parameter
 #CFLAGS+=-DSECP128R1

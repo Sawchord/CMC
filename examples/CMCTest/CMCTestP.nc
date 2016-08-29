@@ -29,11 +29,24 @@
 #include <CMC.h>
 
 /* debug output */
-#if(1)
+/*#if(1)
 #include <printf.h>
 #define OUT(...) printf(__VA_ARGS__); printfflush()
 #else
 #define OUT(...) 
+#endif*/
+
+
+/* debug output definition*/
+#if(1)
+  #ifdef TOSSIM
+    #define OUT(...) dbg("App", __VA_ARGS__);
+  #else
+    #include <printf.h>
+    #define OUT(...) printf(__VA_ARGS__); printfflush()
+  #endif
+#else
+  #define OUT(...) 
 #endif
 
 
@@ -155,7 +168,7 @@ module CMCTestP {
     
     // Node 3 is the bitmask generator
     if (TOS_NODE_ID != 1) {
-      call Timer.startPeriodic(2000);
+      call Timer.startPeriodic(5000);
     }
     
   }
@@ -167,7 +180,7 @@ module CMCTestP {
     connecting = FALSE;
     
     if (e == SUCCESS) {
-      OUT("Server has synced successfull with %d\n", nodeid);
+      OUT("Server synced with %d\n", nodeid);
       connected = TRUE;
     }
     else {
@@ -180,7 +193,7 @@ module CMCTestP {
     if (e != SUCCESS) {
       OUT("Sending has failed, need to reconnect\n");
       connected = FALSE;
-      call Timer.startPeriodic(2000);
+      call Timer.startPeriodic(5000);
       return;
     }
     

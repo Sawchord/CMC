@@ -43,8 +43,10 @@ configuration CMCTestC {
   components new CMCSocket() as CMC0;
   CMCTestP.CMC0 -> CMC0;
   
+  //#if defined DEBUG_OUT && !defined TOSSIM
   components SerialStartC;
   components PrintfC;
+  //#endif
   
   // ECC components, needed to load the keys for CMC
   components ECCC,NNM, ECIESC;

@@ -78,12 +78,17 @@
 #define CMC_MAX_MSG_LENGTH 114
 #endif
 
-/* debug output definnition*/
+/* debug output definition*/
 #ifdef DEBUG_OUT
-#include <printf.h>
-#define DBG(...) printf(__VA_ARGS__); printfflush()
+  #ifdef TOSSIM
+    //#include <printf.h>
+    #define DBG(...) dbg("CMC", __VA_ARGS__);
+  #else
+    #include <printf.h>
+    #define DBG(...) printf(__VA_ARGS__); printfflush()
+  #endif
 #else
-#define DBG(...) 
+  #define DBG(...) 
 #endif
 
 /* the cmc server socket*/
@@ -125,9 +130,10 @@ void print_hex (void* data, uint16_t length) {
   
   for (i = 0; i < length; i++) {
     if (i % 8 == 0) DBG("\n");
-    printf("0x%02x ", ((uint8_t*)data)[i]);printfflush();
+    
+    DBG("0x%02x ", ((uint8_t*)data)[i]);
   }
-  DBG("\n");printfflush();
+  DBG("\n");
 }
 
 /* cmc socket states (for both server and client)*/

@@ -176,7 +176,7 @@ module CMCP {
     pad_bytes = (CMC_CC_BLOCKSIZE - ( (data_len + sizeof(uint16_t) + CMC_HASHSIZE)
       % CMC_CC_BLOCKSIZE) % CMC_CC_BLOCKSIZE);
     
-    DBG("data_len:%d pad_bytes:%d\n", data_len, pad_bytes);
+    //DBG("data_len:%d pad_bytes:%d\n", data_len, pad_bytes);
     
     // check for the right conditions to send
     if ( !(sock->com_state == CMC_ESTABLISHED || sock->com_state == CMC_ACKPENDING) ) {
@@ -215,7 +215,7 @@ module CMCP {
     message_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, message_size));
     data_header = (cmc_data_hdr_t*)( (void*) message_hdr + sizeof(cmc_hdr_t) );
     
-    DBG("payload_size: %d pad_bytes: %d \n", payload_size, pad_bytes);
+    DBG("payload_size: %d, data_len: %d, pad_bytes: %d \n", payload_size, data_len, pad_bytes);
     
     message_hdr->src_id = sock->local_id;
     message_hdr->group_id = sock->group_id;
@@ -242,7 +242,7 @@ module CMCP {
     last_busy_sock = sock;
     last_send_msg_type = CMC_DATA;
     
-    DBG("send_data\n");
+    DBG("send data\n");
     if  (call AMSend.send(AM_BROADCAST_ADDR, &pkt, message_size) != SUCCESS) {
       DBG("error sending data\n");
       return FAIL;
@@ -284,21 +284,30 @@ module CMCP {
     cmc_sock_t* sock = last_busy_sock;
     uint8_t last_busy_sock_num;
     
+    // Calculate the number of the last busy socket
+    // out of the socks pointer and the poiner to the last
+    // busy sock, since the TinyOS generics need the number
+    // and not the pointer. 
+    last_busy_sock_num = (uint8_t) ((void*) last_busy_sock - (void*) socks);
+    
     if (interface_busy != TRUE) {
-      DBG("send done risen with not busy interface -> bug.\n");
+      DBG("sendDone risen no busy interface -> bug.\n");
     }
     interface_busy = FALSE;
     
     // quit, if nothing needs to be done
     if (interface_callback == FALSE) {
       DBG("send done\n");
+      
+      // NOTE: From the user side, a send done happens, if an ACK was received
+      // and not here
+      
       return;
     }
     interface_callback = FALSE;
     
-    last_busy_sock_num = (uint8_t) ((void*) last_busy_sock - (void*) socks);
-    
-    
+    // TODO: Aparently CMC_DATA is the only case to look 
+    // out for, hence, this code could be prettyfied
     switch (last_send_msg_type) {
       
       case CMC_SYNC:
@@ -309,14 +318,14 @@ module CMCP {
         
       case CMC_DATA:
         
-        DBG("signal user the message\n");
+        DBG("signal msg to user\n");
         signal CMC.recv[last_busy_sock_num]
           (&(sock->last_msg), sock->last_msg_len, sock->last_dst);
         
         break; /* CMC_DATA */
       
       default:
-        DBG("sendDone risen without last_send_msg_type set -> bug");
+        DBG("sendDone risen without last_send_msg_type properly set -> bug");
         break;
       
     }
@@ -425,11 +434,11 @@ module CMCP {
     
     // if socket was not found, continue
     if (sock == NULL) {
-      DBG("recv msg, ignored, no socket found with gid: %d\n", socks[i].group_id);
+      DBG("ign recv msg, no sock with gid: %d\n", socks[i].group_id);
       return msg;
     }
     
-    DBG("recv packet for socket %d in state %d\n", i, socks[i].com_state);
+    DBG("recv pkt for sock %d in state %d\n", i, socks[i].com_state);
     
     switch(packet->type) {
       case CMC_SYNC:
@@ -667,6 +676,9 @@ module CMCP {
           uint16_t j;
           uint8_t pad_bytes;
           
+          // used to calculate the number of sock - socks
+          uint8_t active_sock_num;
+          
           cmc_data_hdr_t* data;
           data = (cmc_data_hdr_t*)( (void*) packet + sizeof(cmc_hdr_t)) ;
           
@@ -704,6 +716,13 @@ module CMCP {
           
           DBG("Got acked, setting COM_STATE to ESTABLISHED\n");
           sock->com_state = CMC_ESTABLISHED;
+          
+          // From the users perspective, this is when a send was successfull, 
+          // thus sendDone must be signaled here.
+          
+          active_sock_num = (uint8_t) ((void*) sock - (void*) socks);
+          signal CMC.sendDone[active_sock_num](SUCCESS);
+          
           
         }
         else {
@@ -770,8 +789,8 @@ module CMCP {
     }
     
     if (call BlockCipher.init( &(sock->master_key), 8, 16, key) != SUCCESS) {
-            DBG("error while generating masterkey\n");
-            return FAIL;
+      DBG("error while generating masterkey\n");
+      return FAIL;
     }
     
     DBG("master key generated\n");
