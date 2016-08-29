@@ -28,17 +28,9 @@
 
 #include <CMC.h>
 
-/* debug output */
-/*#if(1)
-#include <printf.h>
-#define OUT(...) printf(__VA_ARGS__); printfflush()
-#else
-#define OUT(...) 
-#endif*/
-
 
 /* debug output definition*/
-#if(1)
+#ifdef APP_OUT
   #ifdef TOSSIM
     #define OUT(...) dbg("App", __VA_ARGS__);
   #else
@@ -227,7 +219,7 @@ module CMCTestP {
       }
       
       
-      if (call CMC0.send(data->dst_id, data, sizeof(LedMsg) != SUCCESS)) {
+      if (call CMC0.send(data->dst_id, data, sizeof(LedMsg)) != SUCCESS) {
          OUT("Server error while resending the data\n");
       }
       else {

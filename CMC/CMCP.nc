@@ -269,6 +269,9 @@ module CMCP {
       socks[i].retry_timer = 0;
     }
     
+    //NOTE: Output here makes the whole node crash fatally
+    //DBG("CMC init complete\n");
+    
     return SUCCESS;
   }
   
@@ -297,39 +300,27 @@ module CMCP {
     
     // quit, if nothing needs to be done
     if (interface_callback == FALSE) {
-      DBG("send done\n");
+      DBG("send done on sock %d\n", last_busy_sock_num);
       
       // NOTE: From the user side, a send done happens, if an ACK was received
-      // and not here
+      // and not here. This send done just denotes, that one half of the protocol
+      // has finished.
       
       return;
     }
     interface_callback = FALSE;
     
-    // TODO: Aparently CMC_DATA is the only case to look 
-    // out for, hence, this code could be prettyfied
-    switch (last_send_msg_type) {
-      
-      case CMC_SYNC:
-        break; /* CMC_SYNC */
-        
-      case CMC_KEY:
-        break; /* CMC_KEY */
-        
-      case CMC_DATA:
-        
-        DBG("signal msg to user\n");
+    
+    if (last_send_msg_type == CMC_DATA) {
+      DBG("signal msg to user\n");
         signal CMC.recv[last_busy_sock_num]
           (&(sock->last_msg), sock->last_msg_len, sock->last_dst);
-        
-        break; /* CMC_DATA */
-      
-      default:
-        DBG("sendDone risen without last_send_msg_type properly set -> bug");
-        break;
-      
+    }
+    else {
+       DBG("interface_callback set, but pkt send was not data -> bug\n");
     }
     return;
+    
   }
   
   
@@ -376,7 +367,6 @@ module CMCP {
           break; /* CMC_PRECONNECTION */
         
         
-        //case CMC_ACKPENDING1:
         case CMC_ACKPENDING:
           
           if (sock->retry_timer == 0) {
@@ -564,12 +554,13 @@ module CMCP {
             return msg;
           }
           
-          // Node should only process messages, that come from the server
+          // Node should only process messagesthat are adressed to the server
           if (!IS_SERVER && packet->src_id != 0) {
             DBG("rcvd message from other client, ignored\n");
             return msg;
           }
           
+          // Calculates pad bytes, since sha1 hash needs dividible by 8 input.
           pad_bytes = (CMC_CC_BLOCKSIZE - ((data->length + sizeof(uint16_t) + CMC_HASHSIZE)
           % CMC_CC_BLOCKSIZE) % CMC_CC_BLOCKSIZE);
           
@@ -624,6 +615,10 @@ module CMCP {
           memcpy(&(sock->last_msg), &(decrypted_data.data), data->length);
           sock->last_msg_len = data->length;
           sock->last_dst = packet->src_id;
+          
+          // NOTE: Maybe this is to general, and the assignment 
+          // should be somewere down there.
+          last_busy_sock = sock;
           
           // If this is a server, it needs to resent the message
           // then signal the user. Note that a server does not reach

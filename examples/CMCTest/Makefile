@@ -2,17 +2,21 @@ COMPONENT=CMCTestC
 # uncomment this for network programming support
 # BOOTLOADER=tosboot
 
-PFLAGS += -DNEW_PRINTF_SEMANTICS
-
-# for the printf
-CFLAGS += -I$(TOSDIR)/lib/printf
-CFLAGS += -DPRINTF_BUFFER_SIZE=750
 
 CFLAGS += -I$/../../CMC/TinyECC
 CFLAGS += -I$/../../CMC/crypto
 
+# To stop make from triggering warning
+PFLAGS += -DNEW_PRINTF_SEMANTICS
+
+# for the printf
+CFLAGS += -I$(TOSDIR)/lib/printf
+CFLAGS += -DPRINTF_BUFFER_SIZE=500
+
 # Enable debug output
 CFLAGS += -DDEBUG_OUT
+#CFLAGS += -DAPP_OUT
+
 
 ##choose curve parameter
 #CFLAGS+=-DSECP128R1
