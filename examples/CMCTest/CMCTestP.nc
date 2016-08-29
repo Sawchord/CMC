@@ -76,6 +76,8 @@ module CMCTestP {
   
   uint8_t* keylist[] = {key0, key1, key2};
   
+  LedMsg answer;
+  
   event void Boot.booted() {
     
     // Start the radio interface
@@ -86,6 +88,9 @@ module CMCTestP {
   /*
    * Reads the openssl hex representation of an ECC
    * key into an actual NN_DIGIT representation.
+   * Since this function is usefull for the whole package,
+   * it should be moved into some util package or something 
+   * in the future.
    */
   void hex_to_key(NN_DIGIT* out, uint8_t* in) {
     
@@ -186,7 +191,6 @@ module CMCTestP {
   
   event void CMC0.recv(void* payload, uint16_t plen, uint16_t nodeid) {
     
-    //LedMsg answer;
     LedMsg* data;
     
     //if (plen != sizeof(LedMsg)) {
@@ -196,7 +200,7 @@ module CMCTestP {
     
     data = (LedMsg*) payload;
     
-    // The server needs to resend the stuffs
+    // The server needs to resend the stuff
     if (TOS_NODE_ID == 1 && data->dst_id != 1) {
       
       if (data->dst_id > 3) {
@@ -208,13 +212,19 @@ module CMCTestP {
       if (call CMC0.send(data->dst_id, data, sizeof(LedMsg) != SUCCESS)) {
          OUT("Server error while resending the data\n");
       }
+      else {
+        OUT("Resent bitmask %d from %d for %d\n", data->bitmask, data->nodeid, data->dst_id);
+      }
       
       return;
     }
     
-    OUT("Received bitmask %d from node %d \n", data->bitmask, data->nodeid);
+    OUT("recvd bitmask %d from node %d for %d\n", data->bitmask, data->nodeid, data->dst_id);
     
-    call Leds.set(data->bitmask);
+    if (data->dst_id == TOS_NODE_ID) {
+      OUT("Thats me\n");
+      call Leds.set(data->bitmask);
+    }
     
     return;
   }
