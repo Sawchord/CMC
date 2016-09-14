@@ -45,6 +45,7 @@
 /* the hashsize of the hash used in cmc, currently sha1 */
 #define CMC_HASHSIZE 20
 
+// Datafield = msg length - hash - length information
 #define CMC_DATAFIELD_SIZE TOSH_DATA_LENGTH-CMC_HASHSIZE-sizeof(nx_uint16_t)
 
 /* the cannel for the MCMC network to operate on */

@@ -25,6 +25,8 @@
  * Basic header file descriptions for the crpto contexts. These are untyped
  * and meant to be opaque to all but the appropriate modules, which should
  * cast the structures to their appropriate internal types. 
+ *
+ * Modified by Arne Bochem.
  */
 
 /*
@@ -35,49 +37,24 @@
 #define CRYPTO_H
 
 typedef struct CipherContext {
-  // rc5      needs 104 bytes
-  // skipjack needs 32 * 4 = 128 bytes.
-  // aes128   needs 4 * 4 * 11 = 176 bytes
-  // xtea     needs 16 bytes
-#if defined(USE_AES128)
-  uint8_t context[176];
-#else
-#if defined(USE_SKIPJACK)
-  uint8_t context[128];
-#else
-#if defined(USE_RC5)
-  uint8_t context[104];
-#else
-#if defined(USE_XTEA)||defined(USE_JIT_AES128)
-  uint8_t context[16];
-#endif
-#endif
-#endif
-#endif
+	// rc5      needs 104 bytes
+	// skipjack needs 32 * 4 = 128 bytes.
+	// aes128   needs 4 * 4 * 11 = 176 bytes
+	// xtea     needs 16 bytes
+	uint8_t context[16];
 } CipherContext;
 
 /**
  * Context for the block cipher modes
  */
 typedef struct CipherModeContext {
-#ifdef USE_JIT_CIPHERS
-	uint8_t key_size;
-	uint8_t key[16];
-#else
-  CipherContext cc;
-#endif
-  uint8_t context[24];
+	CipherContext cc;
+	uint8_t context[24];
 } CipherModeContext;
 
 typedef struct RandomContext {
-#ifndef USE_JIT_CIPHERS
 	CipherContext cc;
-#endif
-#if defined(NO_INCREMENTAL_DECRYPT)
-	uint8_t context[58];
-#else
 	uint8_t context[67];
-#endif
 } __attribute__ ((packed)) RandomContext;
 
 #define DBG_CRYPTO "DBG_CRYPTO"

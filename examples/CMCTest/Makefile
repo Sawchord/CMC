@@ -17,6 +17,8 @@ CFLAGS += -DPRINTF_BUFFER_SIZE=500
 CFLAGS += -DDEBUG_OUT
 #CFLAGS += -DAPP_OUT
 
+# Enable XTEA encryption
+CFLAGS += -DUSE_XTEA
 
 ##choose curve parameter
 #CFLAGS+=-DSECP128R1
