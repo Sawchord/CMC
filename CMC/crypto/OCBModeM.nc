@@ -467,26 +467,21 @@ implementation
 		uint8_t bottom;
 		uint8_t j, n, max;
     
-    printf("Checking:\n");printfflush();
     
 		/* Zero bytes of actual ciphertext are not valid. */
 		if (cipherBytes <= BSIZE){
-      printf("cipherBytes <= BISZE\n");printfflush();
 			return EINVAL;}
 
 		/* This implementation does not support messages longer than 128B. */
 		if (cipherBytes > 144 || assocBytes > 128){
-      printf("cipherBytes > 144 || assocBytes > 128\n");printfflush();
 			return EINVAL;}
 
 		/* Size of ciphertext is size of plaintext + length of MAC. */
 		if (plainBytes != cipherBytes - BSIZE){
-      printf("plainBytes != cipherBytes - BSIZE\n");printfflush();
 			return EINVAL;}
 
 		/* Improperly initialized. */
 		if (!mctx->ok){
-      printf("!mctx->ok\n");printfflush();
 			return EINVAL;}
 
 		/* Can use internal counter. This should only happen, when
@@ -503,7 +498,6 @@ implementation
 #ifdef USE_JIT_CIPHERS
 		/* Initialize cipher. */
 		if (call BlockCipher.init(cctx, BSIZE, context->key_size, context->key) != SUCCESS){
-      printf("BCInit error\n");printfflush();
 			return EINVAL;}
 #endif
 
@@ -527,7 +521,6 @@ implementation
 		/* Tag is not part of the ciphertext proper. */
 		cipherBytes -= BSIZE;
     
-    printf("Alive\n");printfflush();
     
 		/* Decrypt plaintext. Start with full blocks. */
 		n = -1;
@@ -625,7 +618,6 @@ implementation
 
 		/* Check tag. */
 		if (memcmp(checksum_a, cipherText, BSIZE)) {
-      printf("hash mismatch\n");printfflush();
 			return FAIL;}
 
 		/* Export counter state. */
