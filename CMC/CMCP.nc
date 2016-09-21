@@ -52,7 +52,8 @@ module CMCP {
     interface AMSend;
     interface Receive;
     
-    interface BlockCipher;
+    //interface BlockCipher;
+    interface OCBMode;
     
     interface NN;
     interface ECC;
@@ -142,14 +143,14 @@ module CMCP {
   }
   
   /* Generates a simple sha1 hash of a message */
-  error_t sha1_hash(void* output, void* input, uint16_t input_len) {
+  /*error_t sha1_hash(void* output, void* input, uint16_t input_len) {
     SHA1Context ctx;
     error_t err;
     err = call SHA1.reset(&ctx);
     err = call SHA1.update(&ctx, input, input_len);
     err = call SHA1.digest(&ctx, output);
     return err;
-  }
+  }*/
   
   
   error_t send_data(cmc_sock_t* sock) {
@@ -157,12 +158,11 @@ module CMCP {
     cmc_hdr_t* message_hdr;
     cmc_data_hdr_t* data_header;
     
-    cmc_clear_data_hdr_t clear_data;
+    // The context needed for the OCBMode encryption
+    CipherModeContext context;
     
     uint8_t message_size; /* size of the complete message including main header */
     uint8_t payload_size; /* actual size of the data field */
-    uint8_t pad_bytes;
-    uint16_t i;
     uint8_t data_len;
     
     if (interface_busy == TRUE) {
@@ -172,50 +172,30 @@ module CMCP {
     
     data_len = sock->last_msg_len;
     
-    // calculate the number of padding bytes needed
-    pad_bytes = (CMC_CC_BLOCKSIZE - ( (data_len + sizeof(uint16_t) + CMC_HASHSIZE)
-      % CMC_CC_BLOCKSIZE) % CMC_CC_BLOCKSIZE);
-    
-    //DBG("data_len:%d pad_bytes:%d\n", data_len, pad_bytes);
-    
     // check for the right conditions to send
     if ( !(sock->com_state == CMC_ESTABLISHED || sock->com_state == CMC_ACKPENDING) ) {
       DBG("socket not in condition to send\n");
       return FAIL;
     }
     
-    if (data_len + pad_bytes > CMC_DATAFIELD_SIZE) {
+    if (data_len + CMC_CC_SIZE > CMC_DATAFIELD_SIZE) {
       DBG("data too long\n");
       return FAIL;
     }
     
     // calculate size
-    //              group_id          sha1 hash size  data        padding
-    payload_size = sizeof(uint16_t) + CMC_HASHSIZE + data_len + pad_bytes;
-    //             header              encrypted data  data length field
-    message_size = sizeof(cmc_hdr_t) + payload_size +  sizeof(uint16_t);
+    //             data       encyption takes 16 bytes
+    payload_size = data_len + CMC_CC_SIZE;
+    //             header              encrypted data  counter is 8 bytes
+    message_size = sizeof(cmc_hdr_t) + payload_size +  sizeof(uint64_t);
     
     
-    //build the data packet
-    clear_data.group_id = sock->group_id;
-    memcpy(&(clear_data.data), &(sock->last_msg), data_len);
-    // fill the rest with padbytes
-    memset((void*) &(clear_data.data) + data_len, 0, pad_bytes);
-    
-    if (sha1_hash(&(clear_data.hash), &(clear_data.data), 
-      data_len + pad_bytes) != SUCCESS) {
-      DBG("error in send while hashing\n");
-      return FAIL;
-    }
-    
-    //DBG("Calculated message hash:");
-    //print_hex(&(clear_data.hash), CMC_HASHSIZE);
     
     // prepare the message to send
     message_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, message_size));
     data_header = (cmc_data_hdr_t*)( (void*) message_hdr + sizeof(cmc_hdr_t) );
     
-    DBG("payload_size: %d, data_len: %d, pad_bytes: %d \n", payload_size, data_len, pad_bytes);
+    DBG("payload_size: %d, data_len: %d\n", payload_size, data_len);
     
     message_hdr->src_id = sock->local_id;
     message_hdr->group_id = sock->group_id;
@@ -224,18 +204,30 @@ module CMCP {
     
     data_header->length = data_len;
     
-    // Encrypt the data.
-    // The blockchipher encryption must be called multiple
-    // times, since it does not have its own loop.
-    // This results in this ugly pointer arithmetic.
-    for (i = 0; i < payload_size; i += CMC_CC_BLOCKSIZE) {
-      if (call BlockCipher.encrypt(&(sock->master_key), 
-        ((uint8_t*) &clear_data) + i, ((uint8_t*) &(data_header->enc_data)) + i ) 
-        != SUCCESS) {
-        DBG("error in send while encrypting\n");
-        return FAIL;
-      }
+    // encrypt the data
+    
+    // initialze the context
+    if (call OCBMode.init(&context, CMC_CC_SIZE, sock->master_key) != SUCCESS) {
+      DBG("error in OCBMode.init in send_data\n");
+      return FAIL;
     }
+    
+    // set the current counter.
+    // this must be done now, since it will be changed later
+    data_header->ccounter = sock->ccounter;
+    
+    // Set the counter into the context.
+    call OCBMode.set_counter(&context, sock->ccounter);
+    
+    // do the actual encryption
+    if (call OCBMode.encrypt(&context, sock->last_msg, NULL, (uint8_t*) data_header->data,
+      data_len, 0, sock->last_msg_len + CMC_CC_SIZE, NULL) != SUCCESS){
+      DBG("encryption error in send_data\n");
+      return FAIL;
+    }
+    
+    // load the updated counter back into the socket
+    sock->ccounter = call OCBMode.get_counter(&context);
     
     
     interface_busy = TRUE;
@@ -505,6 +497,9 @@ module CMCP {
         else {
           uint8_t crypt_err;
           cmc_key_hdr_t* key_hdr;
+          
+          uint8_t j;
+          
           key_hdr = (cmc_key_hdr_t*) ( (void*) packet + sizeof(cmc_hdr_t) );
           
           // decrypt and set the masterkey
@@ -514,11 +509,28 @@ module CMCP {
           DBG("server connect success, got masterkey:");
           print_hex((uint8_t*) &(sock->master_key), 16);
           
-          // Signal user, that the node is now connected to server
-          signal CMC.connected[i](SUCCESS, 0);
+          // Need to generate ccounter here
+          
+          // cast ccounter to uint16_t pointer, to fill it with rand16 values
+          //ccounter_ptr =  (uint16_t*) &sock->ccounter;
+          
+          // Since no two counter of a network are allowed to use the same counter
+          // Every node uses its local_id as the first two bytes in the counter
+          sock->ccounter_compound[0];
+          
+          for (j = 1; j < 4; i++) {
+            sock->ccounter_compound[j] = call Random.rand16();
+          }
+          
+          DBG("Generated counter: %x\n", (unsigned int) sock->ccounter);
+          
           
           DBG("setting COM_STATE to ESTABLISHED\n");
           sock->com_state = CMC_ESTABLISHED;
+          
+          // NOTE: This was moved down. Check for bugs.
+          // Signal user, that the node is now connected to server
+          signal CMC.connected[i](SUCCESS, 0);
           
           return msg;
         }
@@ -530,89 +542,48 @@ module CMCP {
         // check that socket is ok to recevice
         if (sock->com_state == CMC_ESTABLISHED) {
           
-          cmc_clear_data_hdr_t decrypted_data;
-          uint8_t pad_bytes;
+          CipherModeContext context;
           uint8_t payload_size;
-          uint16_t j;
-          
-          // The old master_key needs to be saved,
-          // since it may be necessary to revert to it
-          // if the integrity or authenticity check fails.
-          NN_DIGIT old_master_key;
-          
-          uint8_t hash[CMC_HASHSIZE];
           
           cmc_data_hdr_t* data;
           data = (cmc_data_hdr_t*)( (void*) packet + sizeof(cmc_hdr_t)) ;
           
           DBG("got data from %d to %d\n", packet->src_id, packet->dst_id);
           
-          // Server checks, if dst_id is 0. If this happens
+          // server checks, if dst_id is 0. If this happens
           // there is another server using the same group id in reach
           if (IS_SERVER && packet->dst_id != 0) {
             DBG("Another server with same gid in reach\n");
             return msg;
           }
           
-          // Node should only process messagesthat are adressed to the server
+          // if node is not server, don't process sgs that do not come from the server
           if (!IS_SERVER && packet->src_id != 0) {
             DBG("rcvd message from other client, ignored\n");
             return msg;
           }
           
-          // Calculates pad bytes, since sha1 hash needs dividible by 8 input.
-          pad_bytes = (CMC_CC_BLOCKSIZE - ((data->length + sizeof(uint16_t) + CMC_HASHSIZE)
-          % CMC_CC_BLOCKSIZE) % CMC_CC_BLOCKSIZE);
+          //             data length    counter length
+          payload_size = data->length + sizeof(uint64_t);
           
-          payload_size = sizeof(uint16_t) + CMC_HASHSIZE + data->length + pad_bytes;
-          
-          // Save masterkey
-          memcpy(&old_master_key, &(sock->master_key), sizeof(NN_DIGIT));
-          
-          for (j = 0; j < payload_size; j+= CMC_CC_BLOCKSIZE) {
-            // decrypt the data, this updates the sockets context as well
-            if (call BlockCipher.decrypt(&(sock->master_key),
-              ( (uint8_t*) &(data->enc_data)) + j, 
-              ( (uint8_t*) &decrypted_data) + j ) != SUCCESS) {
-              DBG("error while decryption of recv msg\n");
-              return msg;
-            }
-          }
-          
-          
-          // Check authenticity
-          if (decrypted_data.group_id != sock->group_id) {
-            DBG("Gids not matching, packet forged\n");
-            DBG("recvd gid: %d, socks gid: %d", decrypted_data.group_id, sock->group_id);
-            
-            // revert key
-            memcpy(&(sock->master_key), &old_master_key, sizeof(NN_DIGIT));
+          // do the decryption
+          // initialze the context
+          if (call OCBMode.init(&context, CMC_CC_SIZE, sock->master_key) != SUCCESS) {
+            DBG("error in OCBMOde.init in CMC_DATA processing\n");
             return msg;
           }
           
-          // Check integrity
-          if (sha1_hash(hash, &(decrypted_data.data), 
-            (data->length + pad_bytes)) != SUCCESS) {
-            
-            DBG("hashing error while checking integrity\n");
-          return msg;
-          }
-          if (memcmp(hash, decrypted_data.hash, CMC_HASHSIZE) != 0) {
-            DBG("Hashes are not matching, integrity fail\n");
-            //DBG("Received hash:");
-            //print_hex(&(decrypted_data.hash), CMC_HASHSIZE);
-            
-            //DBG("Calculated hash:");
-            //print_hex(hash, CMC_HASHSIZE);
-            
-            // revert key
-            memcpy(&(sock->master_key), &old_master_key, sizeof(NN_DIGIT));
+          // set the counter
+          call OCBMode.set_counter(&context, data->ccounter);
+          
+          // do the actual decryption
+          if (call OCBMode.decrypt(&context, sock->last_msg, NULL, (uint8_t*) data->data,
+          data->length, 0, data->length + CMC_CC_SIZE, NULL) != SUCCESS) {
+            DBG("Error while decrypting in CMC_DATA.\n");
             return msg;
           }
           
-          
-          
-          memcpy(&(sock->last_msg), &(decrypted_data.data), data->length);
+          // No need to get the counter back, it wont be used anymore
           sock->last_msg_len = data->length;
           sock->last_dst = packet->src_id;
           
@@ -662,17 +633,17 @@ module CMCP {
             return msg;
           }
           
-        }
+        } // end of the ESTABLISHED part
         else if (sock->com_state == CMC_ACKPENDING) {
           
+          // Ugly mem consumptytion here, yikes
+          uint8_t decrypted_message[CMC_DATAFIELD_SIZE];
           //check, whether this is a matching packet resend
-          cmc_clear_data_hdr_t decrypted_data;
-          CipherContext old_c;
+          CipherModeContext context;
           int payload_size;
-          uint16_t j;
-          uint8_t pad_bytes;
           
-          // used to calculate the number of sock - socks
+          
+          // calculate the socket number instead of pointer
           uint8_t active_sock_num;
           
           cmc_data_hdr_t* data;
@@ -686,25 +657,28 @@ module CMCP {
             return msg;
           }
           
-          memcpy(&old_c, &(sock->master_key), sizeof(CipherContext));
           
-          pad_bytes = (CMC_CC_BLOCKSIZE - ((data->length + sizeof(uint16_t) +  
-            CMC_HASHSIZE) % CMC_CC_BLOCKSIZE) % CMC_CC_BLOCKSIZE);
+          payload_size = data->length + sizeof(uint64_t);
           
-          payload_size = sizeof(uint16_t) + CMC_HASHSIZE + data->length + pad_bytes;
+          // do the decryption
+          // initialze the context
+          if (call OCBMode.init(&context, CMC_CC_SIZE, sock->master_key) != SUCCESS){
+            DBG("Error in OCBMode.init in ACK\n");
+            return msg;
+          }
           
-          for (j = 0; j < payload_size; j+= CMC_CC_BLOCKSIZE) {
-          // decrypt the data, this updates the sockets context as well
-            if (call BlockCipher.decrypt(&old_c,
-              ( (uint8_t*) &(data->enc_data)) + j, 
-              ( (uint8_t*) &decrypted_data) + j ) != SUCCESS) {
-              DBG("error while decryption of recv msg\n");
-              return msg;
-            }
+          // set the counter
+          call OCBMode.set_counter(&context, data->ccounter);
+          
+          // do the actual decryption
+          if (call OCBMode.decrypt(&context, decrypted_message, NULL, (uint8_t*) data->data,
+          data->length, 0, data->length + CMC_CC_SIZE, NULL) != SUCCESS) {
+            DBG("Error while decrypting in CMC_DATA.\n");
+            return msg;
           }
           
           
-          if (memcmp(&decrypted_data.data, &(sock->last_msg), 
+          if (memcmp(&decrypted_message, &(sock->last_msg), 
             sock->last_msg_len) != 0) {
             DBG("ACK packet was not matching\n");
             return msg;
@@ -719,7 +693,7 @@ module CMCP {
           active_sock_num = (uint8_t) ((void*) sock - (void*) socks);
           signal CMC.sendDone[active_sock_num](SUCCESS);
           
-          
+          return msg;
         }
         else {
             DBG("socket was not in condition to receive data\n");
@@ -780,14 +754,18 @@ module CMCP {
     sock->com_state = CMC_ESTABLISHED;
     
     // generate Masterkey
+    // FIXME: is it realy necessary to go in one steps?
     for (i = 0; i < 16; i++) {
       key[i] = call Random.rand16();
     }
     
-    if (call BlockCipher.init( &(sock->master_key), 8, 16, key) != SUCCESS) {
+    /*if (call BlockCipher.init( &(sock->master_key), 8, 16, key) != SUCCESS) {
       DBG("error while generating masterkey\n");
       return FAIL;
-    }
+    }*/
+    
+    // FIXME: If this works, one might to be able to generate it directly in this field
+    memcpy(&sock->master_key, &key, 16);
     
     DBG("master key generated\n");
     //print_hex((uint8_t*)&(sock->master_key), 16);

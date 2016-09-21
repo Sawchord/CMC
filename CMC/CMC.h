@@ -46,6 +46,9 @@
 #define CMC_HASHSIZE 20
 
 // Datafield = msg length - hash - length information
+// FIXME: This is probably not calculated correctly anymore
+// Proposing data           counterounter     enc data needs 16 bytes more
+//#define CMC_DATAFILD_SIZE TOSH_DATA_LENGTH-sizeof(nx_uint64_t)-CMC_CC_SIZE
 #define CMC_DATAFIELD_SIZE TOSH_DATA_LENGTH-CMC_HASHSIZE-sizeof(nx_uint16_t)
 
 /* the cannel for the MCMC network to operate on */
@@ -93,11 +96,6 @@
   #define DBG(...) 
 #endif
 
-/*uint16_t get_sp() {
-  uint16_t* sp = (uint16_t*) 0x3e;
-  return *sp;
-}*/
-
 /* the cmc server socket*/
 typedef struct cmc_sock_t {
   
@@ -120,8 +118,12 @@ typedef struct cmc_sock_t {
   NN_DIGIT* private_key;
   Point* public_key;
   
-  /* The AES key context, the shared secret between the nodes */
-  CipherContext master_key;
+  uint8_t master_key[CMC_CC_SIZE];
+  
+  union {
+    uint64_t ccounter;
+    uint16_t ccounter_compound[4];
+  };
   
   uint8_t retry_counter;
   uint16_t retry_timer;
@@ -181,25 +183,15 @@ typedef nx_struct cmc_sync_hdr_t {
 
 typedef nx_struct cmc_key_hdr_t {
   // and ECIES encrypted message is 61 byte longer than its cleantext
-  nx_uint8_t encrypted_context[61 + CMC_CC_SIZE];
+  nx_uint8_t encrypted_master_key[61 + CMC_CC_SIZE];
 } cmc_key_hdr_t;
-
-
-typedef nx_struct cmc_clear_data_hdr_t {
-  nx_uint16_t group_id;
-  nx_uint8_t hash[CMC_HASHSIZE];
-  
-  // this MUST come last
-  nx_uint8_t data[CMC_DATAFIELD_SIZE];
-} cmc_clear_data_hdr_t;
-
 
 typedef nx_struct cmc_data_hdr_t {
   nx_uint16_t length;
-  nx_union {
-    cmc_clear_data_hdr_t clear_data;
-    nx_uint8_t enc_data[sizeof (cmc_clear_data_hdr_t)];
-  };
+
+  nx_uint64_t ccounter;
+  
+  nx_uint8_t data[CMC_DATAFIELD_SIZE];
 } cmc_data_hdr_t;
 
 #endif /* CMC_H */

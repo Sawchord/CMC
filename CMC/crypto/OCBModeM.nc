@@ -61,7 +61,8 @@ implementation
 	static void shift_left (volatile uint8_t *b)
 	{
 		/* Works on bytes [0..16]. */
-#if !defined(TOSSIM) && (defined(PLATFORM_MICAZ) || defined(PLATFORM_MICA2) || defined(PLATFORM_IRIS))
+//#if !defined(TOSSIM) && (defined(PLATFORM_MICAZ) || defined(PLATFORM_MICA2) || defined(PLATFORM_IRIS))
+#if(0)
 		/* 87 clocks */
 		asm volatile (
 			/* Pattern: Load -> shift (with carry for all but first) -> store. (85 clocks) */
@@ -100,7 +101,8 @@ implementation
 	static void shift_right (volatile uint8_t *b)
 	{
 		/* Works on bytes [-1..15]. */
-#if !defined(TOSSIM) && (defined(PLATFORM_MICAZ) || defined(PLATFORM_MICA2) || defined(PLATFORM_IRIS))
+//#if !defined(TOSSIM) && (defined(PLATFORM_MICAZ) || defined(PLATFORM_MICA2) || defined(PLATFORM_IRIS))
+#if(0)
 		/* 87 clocks */
 		asm volatile (
 			/* Pattern: Load -> shift (with carry for all but first) -> store. (85 clocks) */
@@ -137,7 +139,8 @@ implementation
 
 	static void double_func (volatile uint8_t *b, volatile uint8_t *o)
 	{
-#if !defined(TOSSIM) && (defined(PLATFORM_MICAZ) || defined(PLATFORM_MICA2) || defined(PLATFORM_IRIS))
+//#if !defined(TOSSIM) && (defined(PLATFORM_MICAZ) || defined(PLATFORM_MICA2) || defined(PLATFORM_IRIS))
+#if(0)
 		/* 91 clocks */
 		asm volatile (
 			/* Pattern: Load -> shift (with carry for all but first) -> store. (75 clocks) */
