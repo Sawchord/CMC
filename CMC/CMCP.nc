@@ -186,8 +186,8 @@ module CMCP {
     // calculate size
     //             data       encyption takes 16 bytes
     payload_size = data_len + CMC_CC_SIZE;
-    //             header              encrypted data  counter is 8 bytes
-    message_size = sizeof(cmc_hdr_t) + payload_size +  sizeof(uint64_t);
+    //             header              encrypted data  counter             length field
+    message_size = sizeof(cmc_hdr_t) + payload_size +  sizeof(uint64_t) + sizeof(uint16_t);
     
     
     
@@ -218,6 +218,9 @@ module CMCP {
     
     // Set the counter into the context.
     call OCBMode.set_counter(&context, sock->ccounter);
+    
+    DBG("encypting with counter:");
+    print_hex(&sock->ccounter, 8);
     
     // do the actual encryption
     if (call OCBMode.encrypt(&context, sock->last_msg, NULL, (uint8_t*) data_header->data,
@@ -516,14 +519,15 @@ module CMCP {
           
           // Since no two counter of a network are allowed to use the same counter
           // Every node uses its local_id as the first two bytes in the counter
-          sock->ccounter_compound[0];
+          sock->ccounter_compound[3] = sock->local_id;
           
-          for (j = 1; j < 4; i++) {
+          for (j = 0; j < 3; j++) {
             sock->ccounter_compound[j] = call Random.rand16();
           }
           
-          DBG("Generated counter: %x\n", (unsigned int) sock->ccounter);
           
+          DBG("Generated counter:");
+          print_hex(&sock->ccounter, 8);
           
           DBG("setting COM_STATE to ESTABLISHED\n");
           sock->com_state = CMC_ESTABLISHED;
@@ -544,6 +548,7 @@ module CMCP {
           
           CipherModeContext context;
           uint8_t payload_size;
+          uint64_t ccounter;
           
           cmc_data_hdr_t* data;
           data = (cmc_data_hdr_t*)( (void*) packet + sizeof(cmc_hdr_t)) ;
@@ -564,7 +569,7 @@ module CMCP {
           }
           
           //             data length    counter length
-          payload_size = data->length + sizeof(uint64_t);
+          payload_size = data->length + sizeof(uint64_t) + sizeof(uint16_t);
           
           // do the decryption
           // initialze the context
@@ -574,18 +579,26 @@ module CMCP {
           }
           
           // set the counter
-          call OCBMode.set_counter(&context, data->ccounter);
+          ccounter = data->ccounter;
+          call OCBMode.set_counter(&context, ccounter);
+          
+          
+          DBG("decrypting with counter:");
+          print_hex(&ccounter, 8);
+          
+          sock->last_msg_len = data->length;
+          sock->last_dst = packet->src_id;
+          
+          DBG("data length:%d\n", sock->last_msg_len);
           
           // do the actual decryption
           if (call OCBMode.decrypt(&context, sock->last_msg, NULL, (uint8_t*) data->data,
-          data->length, 0, data->length + CMC_CC_SIZE, NULL) != SUCCESS) {
-            DBG("Error while decrypting in CMC_DATA.\n");
+          sock->last_msg_len, 0, sock->last_msg_len + CMC_CC_SIZE, NULL) != SUCCESS) {
+            DBG("Error while decrypting in CMC_DATA ESTABLISHED.\n");
             return msg;
           }
           
           // No need to get the counter back, it wont be used anymore
-          sock->last_msg_len = data->length;
-          sock->last_dst = packet->src_id;
           
           // NOTE: Maybe this is to general, and the assignment 
           // should be somewere down there.
@@ -641,7 +654,7 @@ module CMCP {
           //check, whether this is a matching packet resend
           CipherModeContext context;
           int payload_size;
-          
+          uint64_t ccounter;
           
           // calculate the socket number instead of pointer
           uint8_t active_sock_num;
@@ -658,7 +671,7 @@ module CMCP {
           }
           
           
-          payload_size = data->length + sizeof(uint64_t);
+          payload_size = data->length + sizeof(uint64_t) + sizeof(uint16_t);
           
           // do the decryption
           // initialze the context
@@ -668,12 +681,17 @@ module CMCP {
           }
           
           // set the counter
-          call OCBMode.set_counter(&context, data->ccounter);
+          ccounter = data->ccounter;
+          call OCBMode.set_counter(&context, ccounter);
+          
+          
+          DBG("decrypting with counter:");
+          print_hex(&ccounter, 8);
           
           // do the actual decryption
           if (call OCBMode.decrypt(&context, decrypted_message, NULL, (uint8_t*) data->data,
           data->length, 0, data->length + CMC_CC_SIZE, NULL) != SUCCESS) {
-            DBG("Error while decrypting in CMC_DATA.\n");
+            DBG("Error while decrypting in CMC_DATA in ACKPENDING.\n");
             return msg;
           }
           
@@ -767,8 +785,8 @@ module CMCP {
     // FIXME: If this works, one might to be able to generate it directly in this field
     memcpy(&sock->master_key, &key, 16);
     
-    DBG("master key generated\n");
-    //print_hex((uint8_t*)&(sock->master_key), 16);
+    DBG("master key generated:");
+    print_hex((uint8_t*)&(sock->master_key), 16);
     
     return SUCCESS;
   }

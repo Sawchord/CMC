@@ -15,7 +15,7 @@ CFLAGS += -DPRINTF_BUFFER_SIZE=500
 
 # Enable debug output
 CFLAGS += -DDEBUG_OUT
-#CFLAGS += -DAPP_OUT
+CFLAGS += -DAPP_OUT
 
 # Enable AES128 encryption
 CFLAGS += -DUSE_AES128

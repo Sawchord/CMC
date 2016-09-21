@@ -14,8 +14,8 @@ CFLAGS += -I$/../../CMC/crypto
 # Enable debug output
 CFLAGS += -DDEBUG_OUT
 
-# Enable XTEA encryption
-CFLAGS += -DUSE_XTEA
+# Enable AES128 encryption
+CFLAGS += -DUSE_AES128
 
 ##choose curve parameter
 #CFLAGS+=-DSECP128R1
