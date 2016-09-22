@@ -61,6 +61,9 @@ module CMCP {
     
     interface SHA1;
     
+    // Debug
+    interface Leds;
+    
   }
 } implementation {
   
@@ -97,6 +100,11 @@ module CMCP {
   /* Holds all sockets to cmc servers in an array */
   cmc_sock_t socks[N_SOCKS];
   
+  //uint8_t ledstatus = 0;
+  /* --------- debug functions ---------*/
+  void incled() {
+    if (TOS_NODE_ID == 1) call Leds.set(call Leds.get() + 1);
+  }
   
   /* --------- helpful functions ---------- */
   
@@ -266,7 +274,7 @@ module CMCP {
     
     //NOTE: Output here makes the whole node crash fatally
     //DBG("CMC init complete\n");
-    
+    incled();
     return SUCCESS;
   }
   
@@ -424,7 +432,9 @@ module CMCP {
     
     //FIXME: There is a bug here, sometimes node crashes and restarts here
     //DBG("sp at %p\n", &i);
+    //incled();
     DBG("recv pkt %d for sock %d in state %d\n", packet->type, i, socks[i].com_state);
+    incled();
     
     switch(packet->type) {
       case CMC_SYNC:
@@ -553,6 +563,8 @@ module CMCP {
           cmc_data_hdr_t* data;
           data = (cmc_data_hdr_t*)( (void*) packet + sizeof(cmc_hdr_t)) ;
           
+          incled();
+          
           DBG("got data from %d to %d\n", packet->src_id, packet->dst_id);
           
           // server checks, if dst_id is 0. If this happens
@@ -568,8 +580,10 @@ module CMCP {
             return msg;
           }
           
-          //             data length    counter length
+          //             data length    counter            length
           payload_size = data->length + sizeof(uint64_t) + sizeof(uint16_t);
+          
+          incled();
           
           // do the decryption
           // initialze the context
@@ -587,6 +601,7 @@ module CMCP {
           print_hex(&ccounter, 8);
           
           sock->last_msg_len = data->length;
+  
           sock->last_dst = packet->src_id;
           
           DBG("data length:%d\n", sock->last_msg_len);
@@ -597,6 +612,8 @@ module CMCP {
             DBG("Error while decrypting in CMC_DATA ESTABLISHED.\n");
             return msg;
           }
+          
+          incled();
           
           // No need to get the counter back, it wont be used anymore
           
@@ -613,18 +630,25 @@ module CMCP {
           // but not resend it.
           if (IS_SERVER || (!IS_SERVER && packet->dst_id == sock->local_id)) {
             
+            incled();
+            
             // activate interface callback mechanism and send the data
             interface_callback = TRUE;
             if (send_data(sock) != SUCCESS) {
               DBG("error while acking data\n");
               interface_callback = FALSE;
+              //incled();
               return msg;
             }
+            
+            incled();
             
             // NOTE: Retry Timers needed?
             
             // NOTE: Node stays in CMC_ESTABLISHED
             
+            // FIXME: This node is able to recover, if you leave this out???
+            //return msg;
           }
           // The broadcast
           else if (!IS_SERVER && packet->dst_id == 0xFF) {
@@ -632,9 +656,13 @@ module CMCP {
             
             last_busy_sock_num = (uint8_t) ((void*) sock - (void*) socks);
             
+            incled();
+            
             DBG("recvd broadcast msg\n");
             signal CMC.recv[last_busy_sock_num] 
               (&(sock->last_msg), sock->last_msg_len, 0);
+            
+            incled();
             
             return msg;
             
@@ -714,10 +742,11 @@ module CMCP {
           return msg;
         }
         else {
-            DBG("socket was not in condition to receive data\n");
+          DBG("socket was not in condition to receive data\n");
           return msg;
         }
         
+        DBG("dont come here\n");
         break; /* CMC_DATA */
       
       default:

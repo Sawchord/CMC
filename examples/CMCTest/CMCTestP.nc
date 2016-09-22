@@ -49,7 +49,7 @@ module CMCTestP {
     
     interface CMC as CMC0;
     
-    interface Leds;
+    //interface Leds;
     
     interface Timer<TMilli>;
     //interface LocalTime<TMilli>;
@@ -175,6 +175,7 @@ module CMCTestP {
     if (e == SUCCESS) {
       OUT("Server synced with %d\n", nodeid);
       connected = TRUE;
+      sending = FALSE;
     }
     else {
       OUT("sync failed\n");
@@ -218,8 +219,10 @@ module CMCTestP {
         return;
       }
       
+      memcpy(&answer, data, sizeof(LedMsg));
       
-      if (call CMC0.send(data->dst_id, data, sizeof(LedMsg)) != SUCCESS) {
+      
+      if (call CMC0.send(answer.dst_id, &answer, sizeof(LedMsg)) != SUCCESS) {
          OUT("Server error while resending the data\n");
       }
       else {
@@ -233,7 +236,7 @@ module CMCTestP {
     
     if (data->dst_id == TOS_NODE_ID) {
       OUT("Thats me\n");
-      call Leds.set(data->bitmask);
+      //call Leds.set(data->bitmask);
     }
     
     return;

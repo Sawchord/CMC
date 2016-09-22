@@ -25,11 +25,12 @@ configuration CMCTestC {
   
 } implementation {
   
-  components MainC, LedsC;
+  components MainC;
+  //components LedsC;
   components CMCTestP;
   
   CMCTestP.Boot -> MainC;
-  CMCTestP.Leds -> LedsC;
+  //CMCTestP.Leds -> LedsC;
   
   components new TimerMilliC() as Timer;
   CMCTestP.Timer -> Timer;
