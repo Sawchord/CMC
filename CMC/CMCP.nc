@@ -83,16 +83,6 @@ module CMCP {
    */
   bool interface_busy = FALSE;
   
-  /* Sometimes, a function needs to do something
-   * after already sending something. If this requires
-   * sending, it can not be done directly, since the
-   * interface is still busy. This bool is set, to
-   * indicate, that something still need to be done,
-   * the next time, the interface comes out of busy.
-   */
-  // if_callback removed in v3
-  //bool interface_callback = FALSE;
-  
   /* Point this to the last socket, that used
    * the interface
    */
@@ -177,8 +167,6 @@ module CMCP {
     data_len = sock->last_msg_len;
     
     // check for the right conditions to send
-    // no ACKPENDING in v3
-    //if ( !(sock->com_state == CMC_ESTABLISHED || sock->com_state == CMC_ACKPENDING) ) {
     if ( !(sock->com_state == CMC_ESTABLISHED ) ) {
       DBG("socket not in condition to send\n");
       return FAIL;
@@ -298,30 +286,18 @@ module CMCP {
     }
     interface_busy = FALSE;
     
-    // quit, if nothing needs to be done
-    // no if_callback in v3
-    /*if (interface_callback == FALSE) {
-      DBG("send done on sock %d\n", last_busy_sock_num);
-      
-      // NOTE: From the user side, a send done happens, if an ACK was received
-      // and not here. This send done just denotes, that one half of the protocol
-      // has finished.
-      
-      return;
-    }
-    interface_callback = FALSE;*/
-    
-    
     // TODO: Change this behaviour to something sensible
-    /*
+    
     if (last_send_msg_type == CMC_DATA) {
       DBG("signal msg to user\n");
-        signal CMC.recv[last_busy_sock_num]
-          (&(sock->last_msg), sock->last_msg_len, sock->last_dst);
+        signal CMC.sendDone[last_busy_sock_num](SUCCESS);;
     }
     else {
        DBG("interface_callback set, but pkt send was not data -> bug\n");
-    }*/
+    }
+    
+    // mazbe signal sendDone to user
+    
     return;
     
   }
@@ -368,31 +344,7 @@ module CMCP {
           }
           
           break; /* CMC_PRECONNECTION */
-        
-        // Not needed in v3
-        /*case CMC_ACKPENDING:
-          
-          if (sock->retry_timer == 0) {
-            if (sock->retry_counter < CMC_N_RETRIES) {
-              
-              // resend the message
-              sock->retry_counter++;
-              sock->retry_timer = CMC_RETRY_TIME;
-              send_data(sock);
-              DBG("resending last message\n");
-            }
-            else {
-              
-              // send attempt attempt failed
-              sock->com_state = CMC_CLOSED;
-              DBG("sending the message has failed\n");
-              signal CMC.sendDone[i](FAIL);
-              return;
-              
-            }
-          }
-          
-          break;*/ /* CMC_ACKPENDING */
+       
         
          /* This part handles the resending of the ACK packet
           * on the receiving node.
@@ -572,20 +524,6 @@ module CMCP {
             return msg;
           }
           
-          
-          // server checks, if dst_id is 0. If this happens
-          // there is another server using the same group id in reach
-          //if (IS_SERVER && packet->dst_id != 0) {
-          //  DBG("Another server with same gid in reach\n");
-          //  return msg;
-          //}
-          
-          // if node is not server, don't process sgs that do not come from the server
-          //if (!IS_SERVER && packet->src_id != 0) {
-          //  DBG("rcvd message from other client, ignored\n");
-          //  return msg;
-          //}
-          
           //             data length    counter            length
           payload_size = data->length + sizeof(uint64_t) + sizeof(uint16_t);
           
@@ -621,39 +559,7 @@ module CMCP {
           
           // No need to get the counter back, it wont be used anymore
           
-          // NOTE: Maybe this is to general, and the assignment 
-          // should be somewere down there.
           last_busy_sock = sock;
-          
-          // If this is a server, it needs to resent the message
-          // then signal the user. Note that a server does not reach
-          // this code, if the message had another dst_id than 0.
-          // If this is a client, it only needs to resent and signal
-          // the message, if it is the receiver.
-          // If its mutlicast, it only needs to signal the message,
-          // but not resend it.
-          /*if (IS_SERVER || (!IS_SERVER && packet->dst_id == sock->local_id)) {
-            
-            
-            // activate interface callback mechanism and send the data
-            interface_callback = TRUE;
-            if (send_data(sock) != SUCCESS) {
-              DBG("error while acking data\n");
-              interface_callback = FALSE;
-              return msg;
-            }
-            
-            
-            // NOTE: Retry Timers needed?
-            
-            // NOTE: Node stays in CMC_ESTABLISHED
-            
-            // FIXME: This node is able to recover, if you leave this out???
-            //return msg;
-          }*/
-          // The broadcast
-          //else if (!IS_SERVER && packet->dst_id == 0xFF) {
-          
           
           last_busy_sock_num = (uint8_t) ((void*) sock - (void*) socks);
           
@@ -664,82 +570,8 @@ module CMCP {
           
           return msg;
             
-          //}
-          
-          // Not server and not client recipient
-          /*else {
-            DBG("updated cipher context, returning\n");
-            return msg;
-          }*/
           
         } // end of the ESTABLISHED part
-        // Removed in v3
-        /*else if (sock->com_state == CMC_ACKPENDING) {
-          
-          // Ugly mem consumptytion here, yikes
-          uint8_t decrypted_message[CMC_DATAFIELD_SIZE];
-          //check, whether this is a matching packet resend
-          CipherModeContext context;
-          int payload_size;
-          uint64_t ccounter;
-          
-          // calculate the socket number instead of pointer
-          uint8_t active_sock_num;
-          
-          cmc_data_hdr_t* data;
-          data = (cmc_data_hdr_t*)( (void*) packet + sizeof(cmc_hdr_t)) ;
-          
-          // If packets datalength does not fit, 
-          // it cant be the right packet and we 
-          // can return right away.
-          if (data->length != sock->last_msg_len) {
-            DBG("got packet, but length did not match\n");
-            return msg;
-          }
-          
-          
-          payload_size = data->length + sizeof(uint64_t) + sizeof(uint16_t);
-          
-          // do the decryption
-          // initialze the context
-          if (call OCBMode.init(&context, CMC_CC_SIZE, sock->master_key) != SUCCESS){
-            DBG("Error in OCBMode.init in ACK\n");
-            return msg;
-          }
-          
-          // set the counter
-          ccounter = data->ccounter;
-          call OCBMode.set_counter(&context, ccounter);
-          
-          
-          DBG("decrypting with counter:");
-          print_hex(&ccounter, 8);
-          
-          // do the actual decryption
-          if (call OCBMode.decrypt(&context, decrypted_message, NULL, (uint8_t*) data->data,
-          data->length, 0, data->length + CMC_CC_SIZE, NULL) != SUCCESS) {
-            DBG("Error while decrypting in CMC_DATA in ACKPENDING.\n");
-            return msg;
-          }
-          
-          
-          if (memcmp(&decrypted_message, &(sock->last_msg), 
-            sock->last_msg_len) != 0) {
-            DBG("ACK packet was not matching\n");
-            return msg;
-          }
-          
-          DBG("Got acked, setting COM_STATE to ESTABLISHED\n");
-          sock->com_state = CMC_ESTABLISHED;
-          
-          // From the users perspective, this is when a send was successfull, 
-          // thus sendDone must be signaled here.
-          
-          active_sock_num = (uint8_t) ((void*) sock - (void*) socks);
-          signal CMC.sendDone[active_sock_num](SUCCESS);
-          
-          return msg;
-        }*/ // End of the ACKPENDING part
         else {
           DBG("socket was not in condition to receive data\n");
           return msg;
@@ -815,11 +647,6 @@ module CMCP {
     DBG("Generated counter:");
     print_hex(&sock->ccounter, 8);
     
-    /*if (call BlockCipher.init( &(sock->master_key), 8, 16, key) != SUCCESS) {
-      DBG("error while generating masterkey\n");
-      return FAIL;
-    }*/
-    
     // FIXME: If this works, one might to be able to generate it directly in this field
     memcpy(&sock->master_key, &key, 16);
     
@@ -869,13 +696,7 @@ module CMCP {
     
     error_t err;
     cmc_sock_t* sock = &socks[client];
-    
-    // Only server can send to another machine than the server.
-    // Removed in v3
-    //if (!IS_SERVER) {
-    //  dest_id = 0;
-    //}
-    
+   
     // If a node addresses itself, 
     // make simple pointer handling out of it.
     // This can only happen to the server, 
@@ -897,11 +718,6 @@ module CMCP {
     
     
     if (err == SUCCESS) {
-      
-      // changed in v3
-      //DBG("setting COM_STATE to ACKPENDING\n");
-      //sock->com_state = CMC_ACKPENDING;
-      
       return err;
     }
     
