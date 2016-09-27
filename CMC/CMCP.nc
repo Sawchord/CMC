@@ -39,6 +39,9 @@
 #define IS_SERVER sock->sync_state != CMC_CLOSED
 #endif
 
+
+// New vresion v0.3.0
+
 module CMCP {
   provides interface CMC[uint8_t client];
   provides interface Init;
