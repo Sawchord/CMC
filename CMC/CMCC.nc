@@ -70,7 +70,7 @@ configuration CMCC {
   CMCP.SHA1 -> SHA1M.SHA1;
   
   // Debug
-  components LedsC;
-  CMCP.Leds -> LedsC;
+  //components LedsC;
+  //CMCP.Leds -> LedsC;
   
 }

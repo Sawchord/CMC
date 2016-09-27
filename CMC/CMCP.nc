@@ -65,7 +65,7 @@ module CMCP {
     interface SHA1;
     
     // Debug
-    interface Leds;
+    //interface Leds;
     
   }
 } implementation {
