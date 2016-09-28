@@ -325,7 +325,7 @@ module CMCP {
               // resent sync message
               sock->retry_counter++;
               sock->retry_timer = CMC_RETRY_TIME;
-              send_sync(sock, sock->public_key);
+              send_sync(sock, &sock->public_key);
               DBG("resending sync message\n");
               return;
               
@@ -592,14 +592,16 @@ module CMCP {
   
   /* ---------- command implementations ---------- */
   command error_t CMC.init[uint8_t client](uint16_t local_id, 
-    NN_DIGIT* private_key, Point* public_key) {
+    NN_DIGIT* private_key) {
     
     cmc_sock_t* sock = &socks[client];
     
     sock->local_id = local_id;
     
     sock->private_key = private_key;
-    sock->public_key = public_key;
+    
+    call ECC.gen_public_key(&sock->public_key, private_key);
+    //sock->public_key = public_key;
     
     return SUCCESS;
     
@@ -674,7 +676,7 @@ module CMCP {
     DBG("setting socket to PRECONNECTION\n");
     sock->com_state = CMC_PRECONNECTION;
     
-    if  (send_sync(sock, (sock->public_key)) != SUCCESS) {
+    if  (send_sync(sock, &(sock->public_key)) != SUCCESS) {
       sock->com_state = CMC_CLOSED;
       return FAIL;
     }

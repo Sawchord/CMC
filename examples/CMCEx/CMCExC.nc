@@ -50,7 +50,6 @@ configuration CMCExC {
   components ECCC,NNM, ECIESC;
   CMCExP.NN -> NNM;
   CMCExP.ECC -> ECCC;
-  CMCExP.ECIES -> ECIESC;
   
   
   components SHA1M;

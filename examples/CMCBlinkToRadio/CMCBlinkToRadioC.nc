@@ -1,7 +1,8 @@
 #include <Timer.h>
 #include <NN.h>
-#include <ECC.h>
-#include <ECIES.h>
+
+//#include <ECC.h>
+//#include <ECIES.h>
 
 #include <printf.h>
 #include <CMC.h>
@@ -18,9 +19,6 @@ module CMCBlinkToRadioC {
     
     // The interfaces include functionality needed to operate CMC
     uses interface NN;
-    uses interface ECC;
-    uses interface ECIES;
-    
     
 }
 
@@ -33,7 +31,6 @@ implementation {
   uint8_t* keylist[] = {key0, key1, key2};
   
   NN_DIGIT private_key[NUMWORDS];
-  Point public_key;
   
   uint16_t counter = 0;
   bool busy = FALSE;
@@ -86,11 +83,8 @@ implementation {
       // load the key into its field
       hex_to_key(private_key, keylist[TOS_NODE_ID-1]);
       
-      // generate public key
-      call ECC.gen_public_key(&public_key, private_key);
-      
       // initialize the CMC module
-      call CMC0.init(TOS_NODE_ID, private_key, &public_key);
+      call CMC0.init(TOS_NODE_ID, private_key);
       
       // node 1 is server, the others are clients
       if (TOS_NODE_ID == 1) {

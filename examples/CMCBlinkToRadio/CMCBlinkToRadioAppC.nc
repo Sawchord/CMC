@@ -19,8 +19,6 @@ implementation {
     // CMC needs additional components to work
     components ECCC,NNM, ECIESC;
     App.NN -> NNM;
-    App.ECC -> ECCC;
-    App.ECIES -> ECIESC;
     
     
     App.Boot -> MainC;

@@ -114,7 +114,7 @@ typedef struct cmc_sock_t {
   
   /* this connections private and public key */
   NN_DIGIT* private_key;
-  Point* public_key;
+  Point public_key;
   
   uint8_t master_key[CMC_CC_SIZE];
   

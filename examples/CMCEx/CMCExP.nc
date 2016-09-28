@@ -54,7 +54,6 @@ module CMCExP {
     
     interface NN;
     interface ECC;
-    interface ECIES;
     
     interface SHA1;
   }
@@ -72,8 +71,6 @@ module CMCExP {
   NN_DIGIT client_priv_key[NUMWORDS];
   NN_DIGIT server_priv_key[NUMWORDS];
   
-  Point client_pub_key;
-  Point server_pub_key;
   
   event void Boot.booted() {
     oldtime = call LocalTime.get();
@@ -92,7 +89,6 @@ module CMCExP {
   
   event void RadioControl.startDone(error_t e) {
     
-    //char hash_output[20];
     
     if (e != SUCCESS) {
       OUT("error starting radio... retry\n");
@@ -111,15 +107,13 @@ module CMCExP {
     
     call ECC.gen_private_key(client_priv_key);
     call ECC.gen_private_key(server_priv_key);
-    call ECC.gen_public_key(&client_pub_key, client_priv_key);
-    call ECC.gen_public_key(&server_pub_key, server_priv_key);
     
     
     if (TOS_NODE_ID == 1) {
-      call CMC0.init(TOS_NODE_ID, server_priv_key, &server_pub_key);
+      call CMC0.init(TOS_NODE_ID, server_priv_key);
     }
     else {
-      call CMC0.init(TOS_NODE_ID, client_priv_key, &client_pub_key);
+      call CMC0.init(TOS_NODE_ID, client_priv_key);
     }
     
     if (TOS_NODE_ID == 1) {
@@ -144,7 +138,6 @@ module CMCExP {
       OUT("attempt sync\n");
       oldtime = call LocalTime.get();
       connecting = TRUE;
-      //if (call CMC0.connect(1337, &server_pub_key) != SUCCESS) {
       if (call CMC0.connect(1337) != SUCCESS) {
         OUT("send attempt failed\n");
       }

@@ -30,7 +30,7 @@
 interface CMC {
   
   /* intializes the socket, call before use */
-  command error_t init(uint16_t local_id, NN_DIGIT* private_key, Point* public_key);
+  command error_t init(uint16_t local_id, NN_DIGIT* private_key);
   
   /* opens this socket for connections */
   command error_t bind(uint16_t group_id);
