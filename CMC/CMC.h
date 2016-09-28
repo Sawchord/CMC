@@ -46,7 +46,6 @@
 #define CMC_HASHSIZE 20
 
 // Datafield = msg length - hash - length information
-// FIXME: This is probably not calculated correctly anymore
 // Proposing data           counterounter     enc data needs 16 bytes more
 //#define CMC_DATAFILD_SIZE TOSH_DATA_LENGTH-sizeof(nx_uint64_t)-CMC_CC_SIZE
 #define CMC_DATAFIELD_SIZE TOSH_DATA_LENGTH-CMC_HASHSIZE-sizeof(nx_uint16_t)
@@ -89,7 +88,6 @@
     #define DBG(...) dbg("CMC", __VA_ARGS__);
   #else
     #include <printf.h>
-    //#define DBG(...) printf("(%04x): ", get_sp()); printf(__VA_ARGS__); printfflush()
     #define DBG(...) printf(__VA_ARGS__); printfflush()
   #endif
 #else
@@ -109,7 +107,7 @@ typedef struct cmc_sock_t {
   uint16_t group_id;
   
   /* buffer, for message construction */
-  uint8_t last_dst;
+  uint16_t last_dst;
   uint8_t last_msg[CMC_DATAFIELD_SIZE];
   uint8_t last_msg_len;
   

@@ -1,15 +1,16 @@
 COMPONENT=CMCBlinkToRadioAppC
 
-#CFLAGS += -I$(TOSDIR)/lib/printf
+PFLAGS += -DNEW_PRINTF_SEMANTICS
 
-
-
+# for the printf
+# Enable debug output
+CFLAGS += -I$(TOSDIR)/lib/printf
+CFLAGS += -DPRINTF_BUFFER_SIZE=1024
 
 CFLAGS += -I$/../../CMC/TinyECC
 CFLAGS += -I$/../../CMC/crypto
 
-# Enable debug output
-# CFLAGS += -DDEBUG_OUT
+CFLAGS += -DDEBUG_OUT
 
 # Enable AES128 encryption
 CFLAGS += -DUSE_AES128

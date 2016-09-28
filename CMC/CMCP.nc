@@ -189,7 +189,7 @@ module CMCP {
     message_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, message_size));
     data_header = (cmc_data_hdr_t*)( (void*) message_hdr + sizeof(cmc_hdr_t) );
     
-    DBG("payload_size: %d, data_len: %d\n", payload_size, data_len);
+    DBG("payload_size: %u, data_len: %u\n", payload_size, data_len);
     
     message_hdr->src_id = sock->local_id;
     message_hdr->group_id = sock->group_id;
@@ -289,14 +289,12 @@ module CMCP {
     // TODO: Change this behaviour to something sensible
     
     if (last_send_msg_type == CMC_DATA) {
-      DBG("signal msg to user\n");
-        signal CMC.sendDone[last_busy_sock_num](SUCCESS);;
+      DBG("signal sendDone to user\n");
+      signal CMC.sendDone[last_busy_sock_num](SUCCESS);
     }
     else {
-       DBG("interface_callback set, but pkt send was not data -> bug\n");
+       //DBG("interface_callback set, but pkt send was not data -> bug\n");
     }
-    
-    // mazbe signal sendDone to user
     
     return;
     
@@ -378,13 +376,12 @@ module CMCP {
     
     // if socket was not found, continue
     if (sock == NULL) {
-      DBG("ign recv msg, no sock with gid: %d\n", socks[i].group_id);
+      DBG("ign recv msg, no sock with gid: %u\n", socks[i].group_id);
       return msg;
     }
     
     //FIXME: There is a bug here, sometimes node crashes and restarts here
-    //DBG("sp at %p\n", &i);
-    DBG("recv pkt %d for sock %d in state %d\n", packet->type, i, socks[i].com_state);
+    DBG("recv pkt %u for sock %u in state %u\n", packet->type, i, socks[i].com_state);
     
     switch(packet->type) {
       case CMC_SYNC:
@@ -486,7 +483,7 @@ module CMCP {
           }
           
           
-          DBG("Generated counter:");
+          DBG("generated counter:");
           print_hex(&sock->ccounter, 8);
           
           DBG("setting COM_STATE to ESTABLISHED\n");
@@ -512,15 +509,17 @@ module CMCP {
           
           int last_busy_sock_num;
           
+          error_t err;
+          
           cmc_data_hdr_t* data;
           data = (cmc_data_hdr_t*)( (void*) packet + sizeof(cmc_hdr_t)) ;
           
           
-          DBG("got data from %d to %d\n", packet->src_id, packet->dst_id);
+          DBG("got data from %u to %u\n", packet->src_id, packet->dst_id);
           
           // Added in v3
-          if (packet->dst_id != sock->local_id || packet->dst_id == 0xff) {
-            DBG("not this node, this is %d dst was %d\n", sock->local_id, packet->dst_id);
+          if (packet->dst_id != sock->local_id && packet->dst_id != 0xffff) {
+            DBG("not this node, this is %u dst was %u\n", sock->local_id, packet->dst_id);
             return msg;
           }
           
@@ -547,12 +546,13 @@ module CMCP {
   
           sock->last_dst = packet->src_id;
           
-          DBG("data length:%d\n", sock->last_msg_len);
+          DBG("data length:%u\n", sock->last_msg_len);
           
           // do the actual decryption
-          if (call OCBMode.decrypt(&context, sock->last_msg, NULL, (uint8_t*) data->data,
-          sock->last_msg_len, 0, sock->last_msg_len + CMC_CC_SIZE, NULL) != SUCCESS) {
-            DBG("Error while decrypting in CMC_DATA ESTABLISHED.\n");
+          if ((err = call OCBMode.decrypt(&context, sock->last_msg, NULL, (uint8_t*) data->data,
+          sock->last_msg_len, 0, sock->last_msg_len + CMC_CC_SIZE, NULL)) != SUCCESS) {
+            DBG("error while decrypting in CMC_DATA ESTABLISHED.\n");
+            DBG("error: %u\n", err);
             return msg;
           }
           
@@ -581,7 +581,7 @@ module CMCP {
         break; /* CMC_DATA */
       
       default:
-        DBG("header type %d was not recognized or implemented\n", packet->type);
+        DBG("header type %u was not recognized or implemented\n", packet->type);
         return msg;
     }
     
@@ -644,7 +644,7 @@ module CMCP {
       sock->ccounter_compound[i] = call Random.rand16();
     }
     
-    DBG("Generated counter:");
+    DBG("generated counter:");
     print_hex(&sock->ccounter, 8);
     
     // FIXME: If this works, one might to be able to generate it directly in this field
@@ -661,7 +661,7 @@ module CMCP {
   command error_t CMC.connect[uint8_t client](uint16_t group_id) {
     cmc_sock_t* sock = &socks[client];
     
-    DBG("connecting sock: %d\n", client);
+    DBG("connecting sock: %u\n", client);
     // check, that socket is in intial state
     if (sock->sync_state != CMC_CLOSED || sock->com_state != CMC_CLOSED) {
       DBG("error in connect, socket is not in initial state\n");
