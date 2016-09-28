@@ -38,6 +38,7 @@ implementation {
   uint16_t counter = 0;
   bool busy = FALSE;
   
+  // this ugly function should be hidden away from public eyey, but there was no place to fit it in.
   void hex_to_key(NN_DIGIT* out, uint8_t* in) {
     
     uint8_t i;
@@ -82,11 +83,16 @@ implementation {
   event void RadioControl.startDone(error_t err) {
     if (err == SUCCESS) {
       
+      // load the key into its field
       hex_to_key(private_key, keylist[TOS_NODE_ID-1]);
       
+      // generate public key
       call ECC.gen_public_key(&public_key, private_key);
+      
+      // initialize the CMC module
       call CMC0.init(TOS_NODE_ID, private_key, &public_key);
       
+      // node 1 is server, the others are clients
       if (TOS_NODE_ID == 1) {
         call CMC0.bind(123);
         counter++;
@@ -96,6 +102,7 @@ implementation {
         call CMC0.connect(123);
       }
     }
+    // retry radio, if it did not start
     else {
       call RadioControl.start();
     }
@@ -108,6 +115,7 @@ implementation {
     BlinkToRadioMsg btrpkt;
     counter++;
     
+    // fill packet with information
     btrpkt.nodeid = TOS_NODE_ID;
     btrpkt.counter = counter;
     
@@ -119,6 +127,7 @@ implementation {
   }
     
   event void CMC0.connected(error_t e, uint16_t nodeid) {
+    // nodes increase counter, whenever the get new connections
     if (TOS_NODE_ID == 1) {
       counter++;
       call Leds.set(counter);
