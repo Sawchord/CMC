@@ -83,6 +83,11 @@ module CMCP {
    */
   bool interface_busy = FALSE;
   
+  /* Some computationally intensive parts 
+   * should not be scheduled twice
+   */
+  bool processor_busy = FALSE;
+  
   /* Point this to the last socket, that used
    * the interface
    */
@@ -164,6 +169,7 @@ module CMCP {
       return FAIL;
     }
     
+    
     data_len = sock->last_msg_len;
     
     // check for the right conditions to send
@@ -199,7 +205,6 @@ module CMCP {
     data_header->length = data_len;
     
     // encrypt the data
-    
     // initialze the context
     if (call OCBMode.init(&context, CMC_CC_SIZE, sock->master_key) != SUCCESS) {
       DBG("error in OCBMode.init in send_data\n");
@@ -272,7 +277,8 @@ module CMCP {
   
   event void AMSend.sendDone(message_t* msg, error_t error) {
     
-    cmc_sock_t* sock = last_busy_sock;
+    //cmc_sock_t* sock = last_busy_sock;
+    
     uint8_t last_busy_sock_num;
     
     // Calculate the number of the last busy socket
@@ -376,12 +382,12 @@ module CMCP {
     
     // if socket was not found, continue
     if (sock == NULL) {
-      DBG("ign recv msg, no sock with gid: %u\n", socks[i].group_id);
+      //DBG("ign recv msg, no sock with gid: %u\n", socks[i].group_id);
       return msg;
     }
     
     //FIXME: There is a bug here, sometimes node crashes and restarts here
-    DBG("recv pkt %u for sock %u in state %u\n", packet->type, i, socks[i].com_state);
+    //DBG("recv pkt %u for sock %u in state %u\n", packet->type, i, socks[i].com_state);
     
     switch(packet->type) {
       case CMC_SYNC:
@@ -469,11 +475,6 @@ module CMCP {
           DBG("server connect success, got masterkey:");
           print_hex((uint8_t*) &(sock->master_key), 16);
           
-          // Need to generate ccounter here
-          
-          // cast ccounter to uint16_t pointer, to fill it with rand16 values
-          //ccounter_ptr =  (uint16_t*) &sock->ccounter;
-          
           // Since no two counter of a network are allowed to use the same counter
           // Every node uses its local_id as the first two bytes in the counter
           sock->ccounter_compound[3] = sock->local_id;
@@ -482,14 +483,12 @@ module CMCP {
             sock->ccounter_compound[j] = call Random.rand16();
           }
           
-          
           DBG("generated counter:");
           print_hex(&sock->ccounter, 8);
           
           DBG("setting COM_STATE to ESTABLISHED\n");
           sock->com_state = CMC_ESTABLISHED;
           
-          // NOTE: This was moved down. Check for bugs.
           // Signal user, that the node is now connected to server
           signal CMC.connected[i](SUCCESS, 0);
           
@@ -517,7 +516,6 @@ module CMCP {
           
           DBG("got data from %u to %u\n", packet->src_id, packet->dst_id);
           
-          // Added in v3
           if (packet->dst_id != sock->local_id && packet->dst_id != 0xffff) {
             DBG("not this node, this is %u dst was %u\n", sock->local_id, packet->dst_id);
             return msg;
@@ -525,7 +523,6 @@ module CMCP {
           
           //             data length    counter            length
           payload_size = data->length + sizeof(uint64_t) + sizeof(uint16_t);
-          
           
           // do the decryption
           // initialze the context

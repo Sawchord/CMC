@@ -121,6 +121,11 @@ implementation {
   }
     
   event void CMC0.connected(error_t e, uint16_t nodeid) {
+    //if fail, try reconnect
+    if (e != SUCCESS && TOS_NODE_ID != 1) {
+      call CMC0.connect(123);
+    }
+    
     // nodes increase counter, whenever the get new connections
     if (TOS_NODE_ID == 1) {
       counter++;
