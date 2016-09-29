@@ -11,7 +11,7 @@ CFLAGS += -I$/../../CMC/TinyECC
 CFLAGS += -I$/../../CMC/crypto
 
 #CFLAGS += -DDEBUG_OUT
-#CFLAGS += -DBENCHMARK
+CFLAGS += -DBENCHMARK
 
 # Enable AES128 encryption
 CFLAGS += -DUSE_AES128

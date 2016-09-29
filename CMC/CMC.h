@@ -35,10 +35,13 @@
 // a public key in octet form is 42 byte in size for ECC160R1
 #define CMC_POINT_SIZE 42
 
-// the cipher context of a xtea is 16 bytes
+// the size of a compressed octet
+#define CMC_OCTET_SIZE KEYDIGITS*NN_DIGIT_LEN+1
+
+// the cipher context is 16 bytes
 #define CMC_CC_SIZE 16
 
-// xtea works in 8 byte blocks
+// still needed?
 #define CMC_CC_BLOCKSIZE 8
 
 
@@ -190,7 +193,8 @@ typedef nx_struct cmc_hdr_t {
 
 /* sync header */
 typedef nx_struct cmc_sync_hdr_t {
-  nx_uint8_t public_key[CMC_POINT_SIZE];
+  //nx_uint8_t public_key[CMC_POINT_SIZE];
+  nx_uint8_t public_key[CMC_OCTET_SIZE];
 } cmc_sync_hdr_t;
 
 

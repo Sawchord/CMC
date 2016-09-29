@@ -13,6 +13,7 @@ CFLAGS += -I$/../../CMC/crypto
 
 # Enable debug output
 CFLAGS += -DDEBUG_OUT
+#CFLAGS += -DBENCHMARK
 
 # Enable AES128 encryption
 CFLAGS += -DUSE_AES128
