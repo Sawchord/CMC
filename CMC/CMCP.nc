@@ -62,10 +62,6 @@ module CMCP {
     interface ECC;
     interface ECIES;
     
-    interface SHA1;
-    
-    // Debug
-    //interface Leds;
     
   }
 } implementation {
@@ -86,7 +82,7 @@ module CMCP {
   /* Some computationally intensive parts 
    * should not be scheduled twice
    */
-  bool processor_busy = FALSE;
+  bool sync_busy = FALSE;
   
   /* Point this to the last socket, that used
    * the interface
@@ -140,16 +136,6 @@ module CMCP {
     return call AMSend.send(AM_BROADCAST_ADDR, &pkt, packet_size);
     
   }
-  
-  /* Generates a simple sha1 hash of a message */
-  /*error_t sha1_hash(void* output, void* input, uint16_t input_len) {
-    SHA1Context ctx;
-    error_t err;
-    err = call SHA1.reset(&ctx);
-    err = call SHA1.update(&ctx, input, input_len);
-    err = call SHA1.digest(&ctx, output);
-    return err;
-  }*/
   
   
   error_t send_data(cmc_sock_t* sock) {
@@ -314,6 +300,10 @@ module CMCP {
     // Update the retry_timer of all sockets
     for (i = 0; i < N_SOCKS; i++) {
       sock = &socks[i];
+      
+      // If the timer is already zero, it is not in use
+      if (sock->retry_timer == 0) continue;
+      
       if (( ((int32_t) sock->retry_timer ) - CMC_PROCESS_TIME) < 0) {
         sock->retry_timer = 0;
       }
@@ -321,10 +311,11 @@ module CMCP {
         sock->retry_timer -= CMC_PROCESS_TIME;
       }
       
-      switch(sock->com_state) {
-        case CMC_PRECONNECTION:
-          
-          if (sock->retry_timer == 0) {
+      if (sock->retry_timer == 0) {
+        
+        switch(sock->com_state) {
+          case CMC_PRECONNECTION:
+            
             // if a timeout occurs
             if (sock->retry_counter < CMC_N_RETRIES) {
               
@@ -345,18 +336,12 @@ module CMCP {
               return;
               
             }
-          }
+            
+            break; /* CMC_PRECONNECTION */
           
-          break; /* CMC_PRECONNECTION */
-       
-        
-         /* This part handles the resending of the ACK packet
-          * on the receiving node.
-          */
-        case CMC_ESTABLISHED:
-          break; /* CMC_ESTABLISHED */
-        default:
-          return;
+          default:
+            return;
+        }
       }
       
     }
@@ -405,6 +390,14 @@ module CMCP {
             ( (void*) packet + sizeof(cmc_hdr_t) );
           
           DBG("recv sync msg\n");
+          atomic {
+            if (sync_busy == TRUE) {
+              DBG("recv_sync rejected: busy\n");
+              return msg;
+            }
+            sync_busy = TRUE;
+          }
+          
           
           answer_size = sizeof(cmc_hdr_t) + sizeof(cmc_key_hdr_t);
           
@@ -436,6 +429,8 @@ module CMCP {
           call AMSend.send(AM_BROADCAST_ADDR, &pkt, answer_size);
           
           // NOTE: No retry timers to set. If key msg is lost, node will resend sync message.
+          
+          atomic {sync_busy = FALSE;}
           
           signal CMC.connected[i](SUCCESS, packet->src_id);
           

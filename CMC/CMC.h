@@ -66,7 +66,7 @@
 #define CMC_N_RETRIES 3
 #endif
 
-/* the tim ebetween two retries*/
+/* the time between two retries*/
 #ifndef CMC_RETRY_TIME
 #define CMC_RETRY_TIME 8000
 #endif
