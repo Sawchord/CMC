@@ -55,13 +55,15 @@ module CMCP {
     interface AMSend;
     interface Receive;
     
-    //interface BlockCipher;
     interface OCBMode;
     
     interface NN;
     interface ECC;
     interface ECIES;
-    
+
+    #if defined (BENCHMARK)
+      interface LocalTime;
+    #endif
     
   }
 } implementation {
@@ -82,7 +84,7 @@ module CMCP {
   /* Some computationally intensive parts 
    * should not be scheduled twice
    */
-  bool sync_busy = FALSE;
+  //bool sync_busy = FALSE;
   
   /* Point this to the last socket, that used
    * the interface
@@ -95,6 +97,9 @@ module CMCP {
   /* Holds all sockets to cmc servers in an array */
   cmc_sock_t socks[N_SOCKS];
   
+#if defined (BENCHMARK)
+  uint32_t timer;
+#endif
   
   /* Sends out a sync message */
   error_t send_sync(cmc_sock_t* sock, Point* pub_key) {
@@ -104,9 +109,13 @@ module CMCP {
     cmc_sync_hdr_t* sync_hdr;
     
     if (interface_busy == TRUE) {
-      DBG("send_sync failed, busy if\n");
+      DBG("[send_sync] failed, busy if\n");
       return FAIL;
     }
+    
+    #if defined (BENCHMARK)
+      timer = call LocalTime.get();
+    #endif
     
     // Calculate the packet size
     packet_size = sizeof(cmc_hdr_t) + sizeof(cmc_sync_hdr_t);
@@ -132,7 +141,11 @@ module CMCP {
     last_busy_sock = sock;
     last_send_msg_type = CMC_SYNC;
     
-    DBG("sync send\n");
+    #if defined (BENCHMARK)
+      BENCH("[senc_sync] [bench] sending sync: %d ms\n" (call LocalTime.get() - timer));
+    #endif
+    
+    DBG("[send_sync] success\n");
     return call AMSend.send(AM_BROADCAST_ADDR, &pkt, packet_size);
     
   }
@@ -151,21 +164,24 @@ module CMCP {
     uint8_t data_len;
     
     if (interface_busy == TRUE) {
-      DBG("data send failed, busy if\n");
+      DBG("[send_data] failed, busy if\n");
       return FAIL;
     }
     
+    #if defined (BENCHMARK)
+      timer = call LcoalTime.get()
+    #endif
     
     data_len = sock->last_msg_len;
     
     // check for the right conditions to send
     if ( !(sock->com_state == CMC_ESTABLISHED ) ) {
-      DBG("socket not in condition to send\n");
+      DBG("[send_data] not in condition to send\n");
       return FAIL;
     }
     
     if (data_len + CMC_CC_SIZE > CMC_DATAFIELD_SIZE) {
-      DBG("data too long\n");
+      DBG("[send_data] data too long\n");
       return FAIL;
     }
     
@@ -181,7 +197,7 @@ module CMCP {
     message_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, message_size));
     data_header = (cmc_data_hdr_t*)( (void*) message_hdr + sizeof(cmc_hdr_t) );
     
-    DBG("payload_size: %u, data_len: %u\n", payload_size, data_len);
+    DBG("[send_data] payload_size: %u, data_len: %u\n", payload_size, data_len);
     
     message_hdr->src_id = sock->local_id;
     message_hdr->group_id = sock->group_id;
@@ -193,7 +209,7 @@ module CMCP {
     // encrypt the data
     // initialze the context
     if (call OCBMode.init(&context, CMC_CC_SIZE, sock->master_key) != SUCCESS) {
-      DBG("error in OCBMode.init in send_data\n");
+      DBG("[send_data] error in OCB init\n");
       return FAIL;
     }
     
@@ -210,7 +226,7 @@ module CMCP {
     // do the actual encryption
     if (call OCBMode.encrypt(&context, sock->last_msg, NULL, (uint8_t*) data_header->data,
       data_len, 0, sock->last_msg_len + CMC_CC_SIZE, NULL) != SUCCESS){
-      DBG("encryption error in send_data\n");
+      DBG("[send_data] OCB encryption error\n");
       return FAIL;
     }
     
@@ -222,12 +238,16 @@ module CMCP {
     last_busy_sock = sock;
     last_send_msg_type = CMC_DATA;
     
-    DBG("send data\n");
-    if  (call AMSend.send(AM_BROADCAST_ADDR, &pkt, message_size) != SUCCESS) {
-      DBG("error sending data\n");
+    #if defined (BENCHMARK)
+      BENCH("[send_data] [bench] sending data: %d ms\n" (call LocalTime.get() - timer));
+    #endif
+    
+    if (call AMSend.send(AM_BROADCAST_ADDR, &pkt, message_size) != SUCCESS) {
+      DBG("[send_data] send failed\n");
       return FAIL;
     }
     
+    DBG("[send_data] success\n");
     return SUCCESS;
     
   } /* send_data */
@@ -250,7 +270,6 @@ module CMCP {
     }
     
     //NOTE: Output here makes the whole node crash fatally
-    //DBG("CMC init complete\n");
     return SUCCESS;
   }
   
@@ -274,14 +293,14 @@ module CMCP {
     last_busy_sock_num = (uint8_t) ((void*) last_busy_sock - (void*) socks);
     
     if (interface_busy != TRUE) {
-      DBG("sendDone risen no busy interface -> bug.\n");
+      DBG("[sendDone] risen but no busy interface -> bug.\n");
     }
     interface_busy = FALSE;
     
     // TODO: Change this behaviour to something sensible
     
     if (last_send_msg_type == CMC_DATA) {
-      DBG("signal sendDone to user\n");
+      DBG("[sendDone] signal to user\n");
       signal CMC.sendDone[last_busy_sock_num](SUCCESS);
     }
     else {
@@ -323,7 +342,7 @@ module CMCP {
               sock->retry_counter++;
               sock->retry_timer = CMC_RETRY_TIME;
               send_sync(sock, &sock->public_key);
-              DBG("resending sync message\n");
+              DBG("[timeout] resending sync message\n");
               return;
               
             }
@@ -331,7 +350,7 @@ module CMCP {
               
               // connection attempt failed
               sock->com_state = CMC_CLOSED;
-              DBG("a connection attempt has failed\n");
+              DBG("[timeout] a connection attempt has failed\n");
               signal CMC.connected[i](FAIL, 0);
               return;
               
@@ -389,15 +408,20 @@ module CMCP {
           cmc_sync_hdr_t* sync_hdr = (cmc_sync_hdr_t*) 
             ( (void*) packet + sizeof(cmc_hdr_t) );
           
-          DBG("recv sync msg\n");
-          atomic {
+          DBG("[recv_sync] msg\n");
+          
+          // why does this not work?
+          /*atomic {
             if (sync_busy == TRUE) {
               DBG("recv_sync rejected: busy\n");
               return msg;
             }
             sync_busy = TRUE;
-          }
+          }*/
           
+          #if defined (BENCHMARK)
+            timer = call LocalTime.get();
+          #endif
           
           answer_size = sizeof(cmc_hdr_t) + sizeof(cmc_key_hdr_t);
           
@@ -425,12 +449,16 @@ module CMCP {
           last_send_msg_type = CMC_KEY;
           
           
-          DBG("send key data\n");
+          DBG("[recv_sync] send key data\n");
           call AMSend.send(AM_BROADCAST_ADDR, &pkt, answer_size);
           
           // NOTE: No retry timers to set. If key msg is lost, node will resend sync message.
           
-          atomic {sync_busy = FALSE;}
+          //atomic {sync_busy = FALSE;}
+          
+          #if defined (BENCHMARK)
+            BENCH("[recv_sync] [bench] recv sync: %d ms\n" (call LocalTime.get() - timer));
+          #endif
           
           signal CMC.connected[i](SUCCESS, packet->src_id);
           
@@ -438,7 +466,7 @@ module CMCP {
           
         }
         else {
-          DBG("recv sync msg, but this is not server\n");
+          DBG("[recv_sync] not server -> ignore\n");
           return msg;
         }
         
@@ -447,12 +475,12 @@ module CMCP {
       case CMC_KEY:
         
         if (IS_SERVER) {
-          DBG("recv key msg, but this is server\n");
+          DBG("[recv_key] this is server -> ignore\n");
           return msg;
         }
         
         if (sock->com_state != CMC_PRECONNECTION) {
-          DBG("recv key msgs, but client was not in CMC_PRECONNECTION\n");
+          DBG("[recv_key] not in CMC_PRECONNECTION -> ignore\n");
           return msg;
         }
         else {
@@ -461,13 +489,17 @@ module CMCP {
           
           uint8_t j;
           
+          #if defined (BENCHMARK)
+            timer = call LocalTime.get();
+          #endif
+          
           key_hdr = (cmc_key_hdr_t*) ( (void*) packet + sizeof(cmc_hdr_t) );
           
           // decrypt and set the masterkey
           crypt_err = call ECIES.decrypt((uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
             (uint8_t*) key_hdr, 61+CMC_CC_SIZE, (sock->private_key));
           
-          DBG("server connect success, got masterkey:");
+          DBG("[recv_key] connect success, masterkey:");
           print_hex((uint8_t*) &(sock->master_key), 16);
           
           // Since no two counter of a network are allowed to use the same counter
@@ -478,11 +510,15 @@ module CMCP {
             sock->ccounter_compound[j] = call Random.rand16();
           }
           
-          DBG("generated counter:");
+          DBG("[recv_key] generated counter:");
           print_hex(&sock->ccounter, 8);
           
-          DBG("setting COM_STATE to ESTABLISHED\n");
+          DBG("[recv_key] setting COM_STATE to ESTABLISHED\n");
           sock->com_state = CMC_ESTABLISHED;
+          
+          #if defined (BENCHMARK)
+            BENCH("[recv_key] [bench] revc key and generating counter: %d ms\n" (call LocalTime.get() - timer));
+          #endif
           
           // Signal user, that the node is now connected to server
           signal CMC.connected[i](SUCCESS, 0);
@@ -506,13 +542,17 @@ module CMCP {
           error_t err;
           
           cmc_data_hdr_t* data;
+          
+          #if defined (BENCHMARK)
+            timer = call LocalTime.get();
+          #endif
+          
           data = (cmc_data_hdr_t*)( (void*) packet + sizeof(cmc_hdr_t)) ;
           
-          
-          DBG("got data from %u to %u\n", packet->src_id, packet->dst_id);
+          DBG("[recv_data] from %u to %u\n", packet->src_id, packet->dst_id);
           
           if (packet->dst_id != sock->local_id && packet->dst_id != 0xffff) {
-            DBG("not this node, this is %u dst was %u\n", sock->local_id, packet->dst_id);
+            DBG("[recv_data] not this node -> ignore\n");
             return msg;
           }
           
@@ -522,7 +562,7 @@ module CMCP {
           // do the decryption
           // initialze the context
           if (call OCBMode.init(&context, CMC_CC_SIZE, sock->master_key) != SUCCESS) {
-            DBG("error in OCBMOde.init in CMC_DATA processing\n");
+            DBG("[revc_data] error in OCB init\n");
             return msg;
           }
           
@@ -531,20 +571,20 @@ module CMCP {
           call OCBMode.set_counter(&context, ccounter);
           
           
-          DBG("decrypting with counter:");
+          DBG("[recv_data] decrypting with counter:");
           print_hex(&ccounter, 8);
           
           sock->last_msg_len = data->length;
   
           sock->last_dst = packet->src_id;
           
-          DBG("data length:%u\n", sock->last_msg_len);
+          DBG("[recv_data] data length:%u\n", sock->last_msg_len);
           
           // do the actual decryption
           if ((err = call OCBMode.decrypt(&context, sock->last_msg, NULL, (uint8_t*) data->data,
           sock->last_msg_len, 0, sock->last_msg_len + CMC_CC_SIZE, NULL)) != SUCCESS) {
-            DBG("error while decrypting in CMC_DATA ESTABLISHED.\n");
-            DBG("error: %u\n", err);
+            DBG("[recv_data] error in OCB decrypt\n");
+            //DBG("error: %u\n", err);
             return msg;
           }
           
@@ -555,25 +595,25 @@ module CMCP {
           
           last_busy_sock_num = (uint8_t) ((void*) sock - (void*) socks);
           
-          DBG("recvd broadcast msg\n");
+          #if defined (BENCHMARK)
+            BENCH("[recv_data] [bench] decrypting data: %d ms\n" (call LocalTime.get() - timer));
+          #endif
+          
           signal CMC.recv[last_busy_sock_num] 
             (&(sock->last_msg), sock->last_msg_len, 0);
-          
           
           return msg;
             
           
         } // end of the ESTABLISHED part
         else {
-          DBG("socket was not in condition to receive data\n");
+          DBG("[recv_data] not in condition to receive data\n");
           return msg;
         }
-        
-        DBG("dont come here\n");
         break; /* CMC_DATA */
       
       default:
-        DBG("header type %u was not recognized or implemented\n", packet->type);
+        DBG("[recv] header type %u not recognized \n", packet->type);
         return msg;
     }
     
@@ -612,7 +652,7 @@ module CMCP {
     
     // check, that socket is in intial state
     if (sock->sync_state != CMC_CLOSED || sock->com_state != CMC_CLOSED) {
-      DBG("error in bind, socket is not in initial state\n");
+      DBG("[bind] socket not in init state\n");
       return FAIL;
     }
     
@@ -621,7 +661,7 @@ module CMCP {
     
     sock->group_id = group_id;
     
-    DBG("setting socket to LISTEN and ESTABLISHED\n");
+    DBG("[bind] going to LISTEN and ESTABLISHED\n");
     sock->sync_state = CMC_LISTEN;
     sock->com_state = CMC_ESTABLISHED;
     
@@ -638,13 +678,13 @@ module CMCP {
       sock->ccounter_compound[i] = call Random.rand16();
     }
     
-    DBG("generated counter:");
+    DBG("[bind] generated counter:");
     print_hex(&sock->ccounter, 8);
     
     // FIXME: If this works, one might to be able to generate it directly in this field
     memcpy(&sock->master_key, &key, 16);
     
-    DBG("master key generated:");
+    DBG("[bind] master key generated:");
     print_hex((uint8_t*)&(sock->master_key), 16);
     
     return SUCCESS;
@@ -655,17 +695,17 @@ module CMCP {
   command error_t CMC.connect[uint8_t client](uint16_t group_id) {
     cmc_sock_t* sock = &socks[client];
     
-    DBG("connecting sock: %u\n", client);
+    DBG("[connect] sock: %u\n", client);
     // check, that socket is in intial state
     if (sock->sync_state != CMC_CLOSED || sock->com_state != CMC_CLOSED) {
-      DBG("error in connect, socket is not in initial state\n");
+      DBG("[connect] socket not in init state\n");
       return FAIL;
     }
     
     // set the socket values
     sock->group_id = group_id;
     
-    DBG("setting socket to PRECONNECTION\n");
+    DBG("[connect] going to PRECONNECTION\n");
     sock->com_state = CMC_PRECONNECTION;
     
     if  (send_sync(sock, &(sock->public_key)) != SUCCESS) {
@@ -706,10 +746,8 @@ module CMCP {
     
     memcpy(&(sock->last_msg), data, data_len);
     
-    
     // first try to send data;
     err = send_data(sock);
-    
     
     if (err == SUCCESS) {
       return err;

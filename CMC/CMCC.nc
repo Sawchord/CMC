@@ -49,7 +49,6 @@ configuration CMCC {
   CMCP.AMSend -> AMSenderC;
   CMCP.Receive -> AMReceiverC;
   
-  
   CMC = CMCP;
   
   // ECC components
@@ -58,11 +57,13 @@ configuration CMCC {
   CMCP.ECC -> ECCC;
   CMCP.ECIES -> ECIESC;
   
-  
   components OCBModeC;
   CMCP.OCBMode-> OCBModeC;
   
-  //components SHA1M;
-  //CMCP.SHA1 -> SHA1M.SHA1;
+  #if defined (BENCHMARK)
+    components LocalTimeMilliC;
+    CMCP.LocalTime -> LocalTimeMilliC;
+  #endif
+  
   
 }

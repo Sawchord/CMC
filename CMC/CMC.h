@@ -84,7 +84,6 @@
 /* debug output definition*/
 #ifdef DEBUG_OUT
   #ifdef TOSSIM
-    //#include <printf.h>
     #define DBG(...) dbg("CMC", __VA_ARGS__);
   #else
     #include <printf.h>
@@ -93,6 +92,20 @@
 #else
   #define DBG(...) 
 #endif
+
+/* the benchmark tool needs print, even if DEBUG_OUT is deactivated */
+#if defined(BENCHMARK) && !defined(DEBUG_OUT)
+  #include <printf.h>
+#endif
+
+/* definition of the bench output */
+#ifdef BENCHMARK
+  #define BENCH(...) printf(__VA_ARGS__); printfflush()
+#else
+  #define BENCH(...)
+#endif
+
+
 
 /* the cmc server socket*/
 typedef struct cmc_sock_t {
