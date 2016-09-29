@@ -83,6 +83,7 @@
 
 /* debug output definition*/
 #ifdef DEBUG_OUT
+  #warning "Remember to have SerialC and PrintfC in top module"
   #ifdef TOSSIM
     #define DBG(...) dbg("CMC", __VA_ARGS__);
   #else
@@ -92,6 +93,7 @@
 #else
   #define DBG(...) 
 #endif
+
 
 /* the benchmark tool needs print, even if DEBUG_OUT is deactivated */
 #if defined(BENCHMARK) && !defined(DEBUG_OUT)

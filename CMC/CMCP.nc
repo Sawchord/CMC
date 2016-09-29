@@ -61,8 +61,8 @@ module CMCP {
     interface ECC;
     interface ECIES;
 
-    #if defined (BENCHMARK)
-      interface LocalTime;
+    #ifdef BENCHMARK
+      interface LocalTime<TMilli>;
     #endif
     
   }
@@ -97,7 +97,7 @@ module CMCP {
   /* Holds all sockets to cmc servers in an array */
   cmc_sock_t socks[N_SOCKS];
   
-#if defined (BENCHMARK)
+#ifdef BENCHMARK
   uint32_t timer;
 #endif
   
@@ -113,7 +113,7 @@ module CMCP {
       return FAIL;
     }
     
-    #if defined (BENCHMARK)
+    #ifdef BENCHMARK
       timer = call LocalTime.get();
     #endif
     
@@ -141,8 +141,8 @@ module CMCP {
     last_busy_sock = sock;
     last_send_msg_type = CMC_SYNC;
     
-    #if defined (BENCHMARK)
-      BENCH("[senc_sync] [bench] sending sync: %d ms\n" (call LocalTime.get() - timer));
+    #ifdef BENCHMARK
+      BENCH("[senc_sync] [bench] sending sync: %u ms\n", (call LocalTime.get() - timer));
     #endif
     
     DBG("[send_sync] success\n");
@@ -168,8 +168,8 @@ module CMCP {
       return FAIL;
     }
     
-    #if defined (BENCHMARK)
-      timer = call LcoalTime.get()
+    #ifdef BENCHMARK
+      timer = call LocalTime.get();
     #endif
     
     data_len = sock->last_msg_len;
@@ -238,8 +238,8 @@ module CMCP {
     last_busy_sock = sock;
     last_send_msg_type = CMC_DATA;
     
-    #if defined (BENCHMARK)
-      BENCH("[send_data] [bench] sending data: %d ms\n" (call LocalTime.get() - timer));
+    #ifdef BENCHMARK
+      BENCH("[send_data] [bench] sending data: %u ms\n", (call LocalTime.get() - timer));
     #endif
     
     if (call AMSend.send(AM_BROADCAST_ADDR, &pkt, message_size) != SUCCESS) {
@@ -419,7 +419,7 @@ module CMCP {
             sync_busy = TRUE;
           }*/
           
-          #if defined (BENCHMARK)
+          #ifdef BENCHMARK
             timer = call LocalTime.get();
           #endif
           
@@ -456,8 +456,8 @@ module CMCP {
           
           //atomic {sync_busy = FALSE;}
           
-          #if defined (BENCHMARK)
-            BENCH("[recv_sync] [bench] recv sync: %d ms\n" (call LocalTime.get() - timer));
+          #ifdef BENCHMARK
+            BENCH("[recv_sync] [bench] recv sync: %u ms\n", (call LocalTime.get() - timer));
           #endif
           
           signal CMC.connected[i](SUCCESS, packet->src_id);
@@ -489,7 +489,7 @@ module CMCP {
           
           uint8_t j;
           
-          #if defined (BENCHMARK)
+          #ifdef BENCHMARK
             timer = call LocalTime.get();
           #endif
           
@@ -516,8 +516,8 @@ module CMCP {
           DBG("[recv_key] setting COM_STATE to ESTABLISHED\n");
           sock->com_state = CMC_ESTABLISHED;
           
-          #if defined (BENCHMARK)
-            BENCH("[recv_key] [bench] revc key and generating counter: %d ms\n" (call LocalTime.get() - timer));
+          #ifdef BENCHMARK
+            BENCH("[recv_key] [bench] revc key and generating counter: %u ms\n", (call LocalTime.get() - timer));
           #endif
           
           // Signal user, that the node is now connected to server
@@ -543,7 +543,7 @@ module CMCP {
           
           cmc_data_hdr_t* data;
           
-          #if defined (BENCHMARK)
+          #ifdef BENCHMARK
             timer = call LocalTime.get();
           #endif
           
@@ -595,8 +595,8 @@ module CMCP {
           
           last_busy_sock_num = (uint8_t) ((void*) sock - (void*) socks);
           
-          #if defined (BENCHMARK)
-            BENCH("[recv_data] [bench] decrypting data: %d ms\n" (call LocalTime.get() - timer));
+          #ifdef BENCHMARK
+            BENCH("[recv_data] [bench] decrypting data: %u ms\n", (call LocalTime.get() - timer));
           #endif
           
           signal CMC.recv[last_busy_sock_num] 
