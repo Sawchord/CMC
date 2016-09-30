@@ -36,15 +36,19 @@ interface CMC {
   command error_t bind(uint16_t group_id);
   
   /* connects this socket to the server */
-  //command error_t connect(uint16_t group_id, Point* remote_public_key);
   command error_t connect(uint16_t group_id);
   command error_t connect_add_data(uint16_t group_id, uint8_t* add_data, uint8_t add_data_length);
   
   /* send data over the cannel */
   command error_t send(uint16_t dest_id, void* data, uint8_t data_len);
   
-  /* terminates the connection*/
-  //command error_t close();
+  /* used to fork a complete socket */
+  command uint8_t get_sock_ref();
+  command error_t fork_sock(uint8_t sock_ref);
+  
+  /* let socket change its role */
+  command error_t make_server();
+  command error_t make_client(uint16_t nodeid);
   
   /* The user can implement its own logic, whether to accept a connection */
   event bool accept(uint16_t node_id, Point* remote_public_key, uint8_t* add_data, uint8_t add_data_len);

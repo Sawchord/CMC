@@ -762,6 +762,66 @@ module CMCP {
     return err;
   }
   
+  command uint8_t CMC.get_sock_ref[uint8_t client]() {
+    return client;
+  }
+  
+  command error_t CMC.fork_sock[uint8_t client](uint8_t sock_ref) {
+    error_t err;
+    cmc_sock_t* sock;
+    cmc_sock_t* other_sock;
+    
+    sock = &socks[client];
+    other_sock = &socks[sock_ref];
+    
+    memcpy(sock, other_sock, sizeof(cmc_sock_t));
+    
+    DBG("[fork_sock] forked %u to %u\n", client, sock_ref);
+    
+    return SUCCESS;
+  }
+  
+  command error_t CMC.make_server[uint8_t client]() {
+    
+    cmc_sock_t* sock;
+    
+    #ifdef CMC_CLIENT_ONLY
+      return FAIL;
+    #endif
+    
+    if (sock->com_state == CMC_CLOSED) {
+      DBG("[make_server] [err] socket not active\n");
+      return FAIL;
+    }
+    
+    sock = &socks[client];
+    
+    sock->local_id = 0;
+    sock->sync_state = CMC_LISTEN;
+    
+    DBG("[make_server] success\n");
+    
+    return SUCCESS;
+  }
+  
+  command error_t CMC.make_client[uint8_t client](uint16_t nodeid) {
+    
+    cmc_sock_t* sock;
+    
+    if (sock->com_state == CMC_CLOSED) {
+      DBG("[make_client] [err] socket not active\n");
+      return FAIL;
+    }
+    
+    sock = &socks[client];
+    
+    sock->sync_state = CMC_CLOSED;
+    sock->local_id = nodeid;
+    
+    DBG("[make_client] success\n");
+    
+    return SUCCESS;
+  }
   
   /* --------- default events -------- */
   default event bool CMC.accept[uint8_t cid](uint16_t node_id, Point* remote_public_key, uint8_t* add_data, uint8_t add_data_len) {
