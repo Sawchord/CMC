@@ -193,6 +193,9 @@ module CMCExP {
     
   }
   
+  event bool CMC0.accept(uint16_t node_id, Point* remote_public_key, uint8_t* add_data, uint8_t add_data_len) {
+    return TRUE;
+  }
   
 }
     

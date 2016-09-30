@@ -81,11 +81,6 @@ module CMCP {
    */
   bool interface_busy = FALSE;
   
-  /* Some computationally intensive parts 
-   * should not be scheduled twice
-   */
-  //bool sync_busy = FALSE;
-  
   /* Point this to the last socket, that used
    * the interface
    */
@@ -102,14 +97,15 @@ module CMCP {
 #endif
   
   /* Sends out a sync message */
-  error_t send_sync(cmc_sock_t* sock, Point* pub_key) {
+  error_t send_sync(cmc_sock_t* sock) {
     
     uint8_t packet_size;
     cmc_hdr_t* packet_hdr;
     cmc_sync_hdr_t* sync_hdr;
+    Point* pub_key;
     
     if (interface_busy == TRUE) {
-      DBG("[send_sync] failed, busy if\n");
+      DBG("[send_sync] [err] busy if\n");
       return FAIL;
     }
     
@@ -117,13 +113,22 @@ module CMCP {
       timer = call LocalTime.get();
     #endif
     
-    // Calculate the packet size
-    packet_size = sizeof(cmc_hdr_t) + sizeof(cmc_sync_hdr_t);
+    pub_key = &sock->public_key;
     
-    // Set up the packet
+    // calculate the packet size
+    // packet_size = sizeof(cmc_hdr_t) + sizeof(cmc_sync_hdr_t);
+    //            the main header     the key          the size field    the length of the addtional data
+    packet_size = sizeof(cmc_hdr_t) + CMC_OCTET_SIZE + sizeof(uint8_t) + sock->add_data_len;
+    
+    if (packet_size >= TOSH_DATA_LENGTH) {
+      DBG("[send_sync] [err] packet to big\n");
+      return FAIL;
+    }
+    
+    // set up the packet
     packet_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, packet_size));
     
-    // Calculate the sync_header pointer by offsetting
+    // calculate the sync_header pointer by offsetting
     sync_hdr = (cmc_sync_hdr_t*) ( (void*) packet_hdr + sizeof(cmc_hdr_t) );
     
     // Fill the packet with stuff
@@ -136,6 +141,10 @@ module CMCP {
     // fill in the public key of the server
     call ECC.point2octet((uint8_t*) &(sync_hdr->public_key), 
       CMC_OCTET_SIZE, pub_key, TRUE);
+    
+    // fill in addtional data
+    sync_hdr->add_data_len = sock->add_data_len;
+    memcpy(&sync_hdr->add_data, sock->add_data, sock->add_data_len);
     
     interface_busy = TRUE;
     last_busy_sock = sock;
@@ -164,7 +173,7 @@ module CMCP {
     uint8_t data_len;
     
     if (interface_busy == TRUE) {
-      DBG("[send_data] failed, busy if\n");
+      DBG("[send_data] [err] busy if\n");
       return FAIL;
     }
     
@@ -176,12 +185,7 @@ module CMCP {
     
     // check for the right conditions to send
     if ( !(sock->com_state == CMC_ESTABLISHED ) ) {
-      DBG("[send_data] not in condition to send\n");
-      return FAIL;
-    }
-    
-    if (data_len + CMC_CC_SIZE > CMC_DATAFIELD_SIZE) {
-      DBG("[send_data] data too long\n");
+      DBG("[send_data] [err] no condition to send\n");
       return FAIL;
     }
     
@@ -191,7 +195,10 @@ module CMCP {
     //             header              encrypted data  counter             length field
     message_size = sizeof(cmc_hdr_t) + payload_size +  sizeof(uint64_t) + sizeof(uint16_t);
     
-    
+    if (message_size >= TOSH_DATA_LENGTH) {
+      DBG("[send_data] [err] data too long\n");
+      return FAIL;
+    }
     
     // prepare the message to send
     message_hdr = (cmc_hdr_t*)(call Packet.getPayload(&pkt, message_size));
@@ -297,14 +304,9 @@ module CMCP {
     }
     interface_busy = FALSE;
     
-    // TODO: Change this behaviour to something sensible
-    
     if (last_send_msg_type == CMC_DATA) {
       DBG("[sendDone] signal to user\n");
       signal CMC.sendDone[last_busy_sock_num](SUCCESS);
-    }
-    else {
-       //DBG("interface_callback set, but pkt send was not data -> bug\n");
     }
     
     return;
@@ -341,7 +343,7 @@ module CMCP {
               // resent sync message
               sock->retry_counter++;
               sock->retry_timer = CMC_RETRY_TIME;
-              send_sync(sock, &sock->public_key);
+              send_sync(sock);
               DBG("[timeout] resending sync message\n");
               return;
               
@@ -350,7 +352,7 @@ module CMCP {
               
               // connection attempt failed
               sock->com_state = CMC_CLOSED;
-              DBG("[timeout] a connection attempt has failed\n");
+              DBG("[timeout] [err] connection failed\n");
               signal CMC.connected[i](FAIL, 0);
               return;
               
@@ -390,9 +392,6 @@ module CMCP {
       return msg;
     }
     
-    //FIXME: There is a bug here, sometimes node crashes and restarts here
-    //DBG("recv pkt %u for sock %u in state %u\n", packet->type, i, socks[i].com_state);
-    
     switch(packet->type) {
       case CMC_SYNC:
         if (IS_SERVER) {
@@ -408,17 +407,6 @@ module CMCP {
           cmc_sync_hdr_t* sync_hdr = (cmc_sync_hdr_t*) 
             ( (void*) packet + sizeof(cmc_hdr_t) );
           
-          DBG("[recv_sync] msg\n");
-          
-          // why does this not work?
-          /*atomic {
-            if (sync_busy == TRUE) {
-              DBG("recv_sync rejected: busy\n");
-              return msg;
-            }
-            sync_busy = TRUE;
-          }*/
-          
           #ifdef BENCHMARK
             timer = call LocalTime.get();
           #endif
@@ -428,6 +416,15 @@ module CMCP {
           // decode the public key of the node, that wants to sync
           call ECC.octet2point(&remote_public_key, (uint8_t*) sync_hdr,
             CMC_OCTET_SIZE);
+          
+          // ask user, if this m=node should hava access
+          if (signal CMC.accept[i](packet->src_id, &remote_public_key, (uint8_t*) &sync_hdr->add_data, 
+            sync_hdr->add_data_len) != 1) {
+            
+            DBG("[recv_sync] [err] access denied\n");
+            return msg;
+          }
+          DBG("[recv_sync] access accepted\n");
           
           // assemble the answer packet
           answer_hdr = (cmc_hdr_t*) (call Packet.getPayload(&pkt, answer_size));
@@ -453,8 +450,6 @@ module CMCP {
           call AMSend.send(AM_BROADCAST_ADDR, &pkt, answer_size);
           
           // NOTE: No retry timers to set. If key msg is lost, node will resend sync message.
-          
-          //atomic {sync_busy = FALSE;}
           
           #ifdef BENCHMARK
             BENCH("[recv_sync] [bench] recv sync: %u ms\n", (unsigned int) (call LocalTime.get() - timer));
@@ -692,7 +687,7 @@ module CMCP {
   
   
   
-  command error_t CMC.connect[uint8_t client](uint16_t group_id) {
+  command error_t CMC.connect_add_data[uint8_t client](uint16_t group_id, uint8_t* add_data, uint8_t add_data_len) {
     cmc_sock_t* sock = &socks[client];
     
     DBG("[connect] sock: %u\n", client);
@@ -705,10 +700,13 @@ module CMCP {
     // set the socket values
     sock->group_id = group_id;
     
+    sock->add_data = add_data;
+    sock->add_data_len = add_data_len;
+    
     DBG("[connect] going to PRECONNECTION\n");
     sock->com_state = CMC_PRECONNECTION;
     
-    if  (send_sync(sock, &(sock->public_key)) != SUCCESS) {
+    if  (send_sync(sock) != SUCCESS) {
       sock->com_state = CMC_CLOSED;
       return FAIL;
     }
@@ -723,7 +721,10 @@ module CMCP {
     
   }
   
-  
+  command error_t CMC.connect[uint8_t client](uint16_t group_id) {
+    // call connect_add_data without data;
+    return call CMC.connect_add_data[client](group_id, NULL, 0);
+  }
   
   command error_t CMC.send[uint8_t client](uint16_t dest_id, 
     void* data, uint8_t data_len) {
@@ -763,6 +764,10 @@ module CMCP {
   
   
   /* --------- default events -------- */
+  default event bool CMC.accept[uint8_t cid](uint16_t node_id, Point* remote_public_key, uint8_t* add_data, uint8_t add_data_len) {
+    return FALSE;
+  }
+  
   default event void CMC.connected[uint8_t cid](error_t e, uint16_t nodeid) {}
   
   default event void CMC.sendDone[uint8_t cid](error_t e) {}

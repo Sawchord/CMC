@@ -38,6 +38,7 @@ interface CMC {
   /* connects this socket to the server */
   //command error_t connect(uint16_t group_id, Point* remote_public_key);
   command error_t connect(uint16_t group_id);
+  command error_t connect_add_data(uint16_t group_id, uint8_t* add_data, uint8_t add_data_length);
   
   /* send data over the cannel */
   command error_t send(uint16_t dest_id, void* data, uint8_t data_len);
@@ -45,6 +46,8 @@ interface CMC {
   /* terminates the connection*/
   //command error_t close();
   
+  /* The user can implement its own logic, whether to accept a connection */
+  event bool accept(uint16_t node_id, Point* remote_public_key, uint8_t* add_data, uint8_t add_data_len);
   
   /* Signaled, whenever a node has connected or failed to connect this server */
   event void connected(error_t e, uint16_t nodeid);

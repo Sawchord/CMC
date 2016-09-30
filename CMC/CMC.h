@@ -44,14 +44,17 @@
 // still needed?
 #define CMC_CC_BLOCKSIZE 8
 
-
 /* the hashsize of the hash used in cmc, currently sha1 */
 #define CMC_HASHSIZE 20
 
 // Datafield = msg length - hash - length information
+// FIXME: This is probably wrong
 // Proposing data           counterounter     enc data needs 16 bytes more
 //#define CMC_DATAFILD_SIZE TOSH_DATA_LENGTH-sizeof(nx_uint64_t)-CMC_CC_SIZE
 #define CMC_DATAFIELD_SIZE TOSH_DATA_LENGTH-CMC_HASHSIZE-sizeof(nx_uint16_t)
+
+// addtional data size in the sync header
+#define CMC_ADD_DATA_SIZE TOSH_DATA_LENGTH-CMC_OCTET_SIZE-1
 
 /* the cannel for the MCMC network to operate on */
 #ifndef AM_CMC
@@ -129,6 +132,8 @@ typedef struct cmc_sock_t {
   uint8_t last_msg[CMC_DATAFIELD_SIZE];
   uint8_t last_msg_len;
   
+  uint8_t* add_data;
+  uint8_t add_data_len;
   
   /* this connections private and public key */
   NN_DIGIT* private_key;
@@ -167,7 +172,6 @@ enum {
   CMC_PRECONNECTION,
   CMC_LISTEN,
   CMC_ESTABLISHED,
-  //CMC_ACKPENDING,
 };
 
 
@@ -193,13 +197,14 @@ typedef nx_struct cmc_hdr_t {
 
 /* sync header */
 typedef nx_struct cmc_sync_hdr_t {
-  //nx_uint8_t public_key[CMC_POINT_SIZE];
   nx_uint8_t public_key[CMC_OCTET_SIZE];
+  nx_uint8_t add_data_len;
+  nx_uint8_t add_data[CMC_ADD_DATA_SIZE];
 } cmc_sync_hdr_t;
 
 
 typedef nx_struct cmc_key_hdr_t {
-  // and ECIES encrypted message is 61 byte longer than its cleantext
+  // an ECIES encrypted message is 61 byte longer than its cleantext
   nx_uint8_t encrypted_master_key[61 + CMC_CC_SIZE];
 } cmc_key_hdr_t;
 
