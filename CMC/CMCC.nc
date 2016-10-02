@@ -61,8 +61,8 @@ configuration CMCC {
   CMCP.OCBMode-> OCBModeC;
   
   #ifdef BENCHMARK
-    components LocalTimeMilliC;
-    CMCP.LocalTime -> LocalTimeMilliC;
+    components LocalTimeMicroC;
+    CMCP.LocalTime -> LocalTimeMicroC;
   #endif
   
   

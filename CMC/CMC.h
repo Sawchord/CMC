@@ -153,7 +153,6 @@ typedef struct cmc_sock_t {
 
 /* 
  * This is a debug function,
- * that needs to be removed at the end.
  */
 void print_hex (void* data, uint16_t length) {
   int i = 0;

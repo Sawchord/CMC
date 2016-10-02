@@ -35,6 +35,11 @@
 #define OUT(...) 
 #endif
 
+/* test list:
+ * Test 1: Just synchronize
+ * Test 2: Measure send/receive time
+ * Test 3: Measure test/receive loop time
+ */
 
 module CMCBenchP {
   uses {
@@ -46,7 +51,7 @@ module CMCBenchP {
     interface Leds;
     
     interface Timer<TMilli>;
-    interface LocalTime<TMilli>;
+    interface LocalTime<TMicro>;
     
     interface Random;
     
@@ -67,7 +72,8 @@ module CMCBenchP {
   NN_DIGIT client_priv_key[NUMWORDS];
   NN_DIGIT server_priv_key[NUMWORDS];
   
-  uint8_t test_n = 0;
+  uint8_t test_n = 3;
+  uint8_t test_times = 0;
   uint8_t test_state = 0;
   uint64_t localtime = 0;
   
@@ -102,8 +108,6 @@ module CMCBenchP {
       call CMC0.bind(1337);
     }
     else {
-      test_n = 1;
-      test_state = 1;
       localtime = call LocalTime.get();
       
       call CMC0.connect_add_data(1337, &test_n, 1);
@@ -132,18 +136,24 @@ module CMCBenchP {
     error_t e;
     
     test_state += 2;
-    if (test_n == 2) {
+    if (test_n == 2 || test_n == 3) {
       gen_ran(test_n, (void*) &some_data);
       some_data[0] = test_n;
-      //OUT("[test2] %u bytes\n", test_state);
+      localtime = call LocalTime.get();
       e = call CMC0.send(0xffff, (void*) &some_data, test_state);
       if (e != SUCCESS) {
         OUT("[test2] error %u b\n", test_state);
       }
       
-      if (test_state == 100) {
-        test_n = 3;
-        test_state = 0;
+      if (test_state == 80) {
+        test_times++;
+        
+        if (test_times >= 200) {
+          test_n = 0;
+          call Leds.set(0xff);
+        }
+          test_state = 0;
+          
       }
       
     }
@@ -164,14 +174,10 @@ module CMCBenchP {
       return;
     }
     
-    if (test_n == 1 && test_state == 1) {
-      OUT("[test1] %u ms\n", (unsigned int) (call LocalTime.get() - localtime));
-      
-      test_n = 2;
-      test_state = 0;
-      call Timer.startPeriodic(25);
-      
-    }
+    OUT("[test1] %u ms\n", (unsigned int) (call LocalTime.get() - localtime));
+    
+    call Timer.startPeriodic(80);
+    
     
   }
   
@@ -182,6 +188,7 @@ module CMCBenchP {
     }
     
     if (test_n == 2) {
+      OUT("[test2] [bench] %u b %u ms\n", test_state , (unsigned int) (call LocalTime.get() - localtime));
       return;
     }
     
@@ -194,18 +201,25 @@ module CMCBenchP {
       return;
     }
     
+    if ( *((uint8_t*)payload) == 3) {
+      if (TOS_NODE_ID == 1) {
+        error_t e;
+        e = call CMC0.send(0xffff, payload, plen);
+        if (e != SUCCESS) {
+          OUT("[test3] resend err\n");
+        }
+      }
+      else {
+        OUT("[test3] [bench] %u b %u ms\n", test_state , (unsigned int) (call LocalTime.get() - localtime));
+      }
+    }
+    
     
   }
   
   event bool CMC0.accept(uint16_t node_id, Point* remote_public_key, uint8_t* add_data, uint8_t add_data_len) {
-    if (*add_data == 1) {
-      return TRUE;
-    }
-    else {
-      OUT("[accept] data did not match\n");
-      return FALSE;
-    }
+    OUT("running test %u\n", *((uint8_t*)add_data) );
+    return TRUE;
   }
-  
 }
     

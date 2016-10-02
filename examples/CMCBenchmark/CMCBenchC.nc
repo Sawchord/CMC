@@ -33,8 +33,8 @@ configuration CMCBenchC {
   components new TimerMilliC() as Timer;
   CMCBenchP.Timer -> Timer;
   
-  components LocalTimeMilliC;
-  CMCBenchP.LocalTime -> LocalTimeMilliC;
+  components LocalTimeMicroC;
+  CMCBenchP.LocalTime -> LocalTimeMicroC;
   
   components ActiveMessageC;
   CMCBenchP.RadioControl -> ActiveMessageC;
