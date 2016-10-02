@@ -151,7 +151,7 @@ module CMCP {
     last_send_msg_type = CMC_SYNC;
     
     #ifdef BENCHMARK
-      BENCH("[senc_sync] [bench] sending sync: %u ms\n", (unsigned int)(call LocalTime.get() - timer));
+      BENCH("[senc_sync] [bench] %u ms\n", (unsigned int)(call LocalTime.get() - timer));
     #endif
     
     DBG("[send_sync] success\n");
@@ -246,7 +246,7 @@ module CMCP {
     last_send_msg_type = CMC_DATA;
     
     #ifdef BENCHMARK
-      BENCH("[send_data] [bench] sending data: %u ms\n", (unsigned int) (call LocalTime.get() - timer));
+      BENCH("[send_data] [bench] %u b %u ms\n", data_len , (unsigned int) (call LocalTime.get() - timer));
     #endif
     
     if (call AMSend.send(AM_BROADCAST_ADDR, &pkt, message_size) != SUCCESS) {
@@ -452,7 +452,7 @@ module CMCP {
           // NOTE: No retry timers to set. If key msg is lost, node will resend sync message.
           
           #ifdef BENCHMARK
-            BENCH("[recv_sync] [bench] recv sync: %u ms\n", (unsigned int) (call LocalTime.get() - timer));
+            BENCH("[recv_sync] [bench] %u ms\n", (unsigned int) (call LocalTime.get() - timer));
           #endif
           
           signal CMC.connected[i](SUCCESS, packet->src_id);
@@ -512,7 +512,7 @@ module CMCP {
           sock->com_state = CMC_ESTABLISHED;
           
           #ifdef BENCHMARK
-            BENCH("[recv_key] [bench] revc key and generating counter: %u ms\n", (unsigned int) (call LocalTime.get() - timer));
+            BENCH("[recv_key] [bench] %u ms\n", (unsigned int) (call LocalTime.get() - timer));
           #endif
           
           // Signal user, that the node is now connected to server
@@ -591,7 +591,7 @@ module CMCP {
           last_busy_sock_num = (uint8_t) ((void*) sock - (void*) socks);
           
           #ifdef BENCHMARK
-            BENCH("[recv_data] [bench] decrypting data: %u ms\n", (unsigned int) (call LocalTime.get() - timer));
+            BENCH("[recv_data] [bench] %u b %u ms\n", sock->last_msg_len, (unsigned int) (call LocalTime.get() - timer));
           #endif
           
           signal CMC.recv[last_busy_sock_num] 
@@ -623,12 +623,19 @@ module CMCP {
     
     cmc_sock_t* sock = &socks[client];
     
+    #ifdef BENCHMARK
+      timer = call LocalTime.get();
+    #endif
+    
     sock->local_id = local_id;
     
     sock->private_key = private_key;
     
     call ECC.gen_public_key(&sock->public_key, private_key);
-    //sock->public_key = public_key;
+    
+    #ifdef BENCHMARK
+      BENCH("[init] [bench] %u ms\n", (unsigned int) (call LocalTime.get() - timer));
+    #endif
     
     return SUCCESS;
     
