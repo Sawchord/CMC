@@ -495,6 +495,11 @@ module CMCP {
           crypt_err = call ECIES.decrypt((uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
             (uint8_t*) key_hdr, 61+CMC_CC_SIZE, (sock->private_key));
           
+          
+          DBG("[recv_key] connect success, masterkey:");
+          print_hex((uint8_t*) &(sock->master_key), 16);
+          
+          
           // ECIES decrypt fails to detect a concurrency bug, where the master key gets initialized to 0
           // this is a cheap way of detecting and rejecting it
           
@@ -503,14 +508,10 @@ module CMCP {
               only_z = FALSE;
             }
           }
-          if (only_z == FALSE) {
+          if (only_z == TRUE) {
             DBG("[recv_key] [err] masterkey corrupt\n");
             return msg;
           }
-          
-          
-          DBG("[recv_key] connect success, masterkey:");
-          print_hex((uint8_t*) &(sock->master_key), 16);
           
           // Since no two counter of a network are allowed to use the same counter
           // Every node uses its local_id as the first two bytes in the counter

@@ -124,6 +124,7 @@ implementation {
     //if fail, try reconnect
     if (e != SUCCESS && TOS_NODE_ID != 1) {
       call CMC0.connect(123);
+      return;
     }
     
     // nodes increase counter, whenever the get new connections
