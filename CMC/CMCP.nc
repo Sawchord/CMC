@@ -517,9 +517,13 @@ module CMCP {
           // Every node uses its local_id as the first two bytes in the counter
           sock->ccounter_compound[3] = sock->local_id;
           
-          for (j = 0; j < 3; j++) {
-            sock->ccounter_compound[j] = call Random.rand16();
-          }
+          // every node has three bytes of random counter
+          sock->ccounter_compound[2] = call Random.rand16();
+          sock->ccounter_compound[1] = call Random.rand16();
+          
+          // and the last 3 bytes set to 0
+          sock->ccounter_compound[1] &= 0xff00;
+          sock->ccounter_compound[0] = 0;
           
           DBG("[recv_key] generated counter:");
           print_hex(&sock->ccounter, 8);
