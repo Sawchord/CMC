@@ -483,6 +483,7 @@ module CMCP {
           cmc_key_hdr_t* key_hdr;
           
           uint8_t j;
+          bool only_z = TRUE;
           
           #ifdef BENCHMARK
             timer = call LocalTime.get();
@@ -493,6 +494,20 @@ module CMCP {
           // decrypt and set the masterkey
           crypt_err = call ECIES.decrypt((uint8_t*) &(sock->master_key), CMC_CC_SIZE, 
             (uint8_t*) key_hdr, 61+CMC_CC_SIZE, (sock->private_key));
+          
+          // ECIES decrypt fails to detect a concurrency bug, where the master key gets initialized to 0
+          // this is a cheap way of detecting and rejecting it
+          
+          for (j = 0; j < 16; j++) {
+            if ( ((uint8_t*)sock->master_key)[j] != 0 ) {
+              only_z = FALSE;
+            }
+          }
+          if (only_z == FALSE) {
+            DBG("[recv_key] [err] masterkey corrupt\n");
+            return msg;
+          }
+          
           
           DBG("[recv_key] connect success, masterkey:");
           print_hex((uint8_t*) &(sock->master_key), 16);
