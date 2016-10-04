@@ -97,7 +97,7 @@ module CMCExP {
     }
     
     newtime = call LocalTime.get();
-    OUT("Radio is up after %d ms\n", (newtime - oldtime));
+    OUT("Radio is up after %u ms\n", (unsigned int)(newtime - oldtime));
     
     
     // after the radio is up
@@ -124,7 +124,7 @@ module CMCExP {
     
     
     newtime = call LocalTime.get();
-    OUT("Socket initialized after %d ms\n", (newtime - oldtime));
+    OUT("Socket initialized after %u ms\n", (unsigned int)(newtime - oldtime));
     
   }
   
@@ -156,7 +156,7 @@ module CMCExP {
     connecting = FALSE;
     if (e == SUCCESS) {
       newtime = call LocalTime.get();
-      OUT("sync with %d was successfull after %d ms\n",nodeid ,(newtime - oldtime));
+      OUT("sync with %d was successfull after %u ms\n",nodeid , (unsigned int)(newtime - oldtime));
       connected = TRUE;
     }
     else {

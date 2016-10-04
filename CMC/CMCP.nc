@@ -840,6 +840,23 @@ module CMCP {
     return SUCCESS;
   }
   
+  command error_t CMC.reset[uint8_t client]() {
+    
+    cmc_sock_t* sock;
+    sock = &socks[client];
+    
+    sock->com_state = CMC_CLOSED;
+    sock->sync_state = CMC_CLOSED;
+    
+    sock->retry_counter = 0;
+    sock->retry_timer = 0;
+    
+    DBG("[reset] sock\n");
+    
+    return SUCCESS;
+  }
+  
+  
   /* --------- default events -------- */
   default event bool CMC.accept[uint8_t cid](uint16_t node_id, Point* remote_public_key, uint8_t* add_data, uint8_t add_data_len) {
     return FALSE;

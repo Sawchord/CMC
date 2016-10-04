@@ -50,6 +50,9 @@ interface CMC {
   command error_t make_server();
   command error_t make_client(uint16_t nodeid);
   
+  /* reset a socket into its initial state */
+  command error_t reset();
+  
   /* The user can implement its own logic, whether to accept a connection */
   event bool accept(uint16_t node_id, Point* remote_public_key, uint8_t* add_data, uint8_t add_data_len);
   
