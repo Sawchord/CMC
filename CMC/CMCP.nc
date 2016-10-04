@@ -661,7 +661,6 @@ module CMCP {
   command error_t CMC.bind[uint8_t client](uint16_t group_id) {
     
     uint8_t i;
-    uint8_t key[16];
     cmc_sock_t* sock = &socks[client];
     
     #ifdef CMC_CLIENT_ONLY
@@ -683,10 +682,8 @@ module CMCP {
     sock->sync_state = CMC_LISTEN;
     sock->com_state = CMC_ESTABLISHED;
     
-    // generate Masterkey
-    // FIXME: is it realy necessary to go in one steps?
-    for (i = 0; i < 16; i++) {
-      key[i] = call Random.rand16();
+    for (i = 0; i < 8; i++) {
+      ((uint16_t*)&sock->master_key)[i] = call Random.rand16();
     }
     
     // Generate ccounter
@@ -698,9 +695,6 @@ module CMCP {
     
     DBG("[bind] generated counter:");
     print_hex(&sock->ccounter, 8);
-    
-    // FIXME: If this works, one might to be able to generate it directly in this field
-    memcpy(&sock->master_key, &key, 16);
     
     DBG("[bind] master key generated:");
     print_hex((uint8_t*)&(sock->master_key), 16);
